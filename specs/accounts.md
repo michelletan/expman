@@ -75,20 +75,30 @@ you set an existing account's balance, never create/edit/delete one (see
 **Account references (data integrity)**
 20. Every other store that references an account (`transactions.account`,
     and `recurring.account` once Recurring is built) SHALL store the
-    account's `id`, not its name — field renamed to `accountId`. This
-    means editing an account's name never requires cascading updates to
-    past transactions (unlike the name-based linkage
-    `updateRecurringInstances` has to work around for categories).
+    account's **name**, not its id — reverting the earlier `accountId`
+    approach so accounts follow the same rule as Categories
+    (specs/categories.md requirement 12): reference by name.
+21. Renaming an account SHALL cascade: every transaction (and recurring
+    rule, once built) referencing the old name gets updated to the new
+    name — same treatment as the categories rename-cascade decision
+    (specs/categories.md requirement 9), and the same pattern
+    `updateRecurringInstances` already uses for category-linked rows.
+22. Account names SHALL be unique among **active (non-deleted)**
+    accounts. Creating or renaming an account to a name that collides
+    with another active account SHALL be rejected with an error. A
+    soft-deleted account's old name becomes reusable again (same active-
+    only uniqueness rule categories uses, specs/categories.md requirement
+    10).
 
 **Balance**
-21. An account's current balance SHALL be computed as `initialBalance +
+23. An account's current balance SHALL be computed as `initialBalance +
     sum of all its transactions` (income adds, expense subtracts) — a
     plain running total, not the existing anchor-date-based
     `getCurrentBalance()`. This is a deliberate simplification to revisit
     later if it causes problems.
 
 **Import**
-22. WHEN the user initiates a data import THE APP SHALL warn them that it
+24. WHEN the user initiates a data import THE APP SHALL warn them that it
     replaces all existing data before proceeding (matches `importAll()`'s
     existing full-replace behavior in db.js — nothing to change there).
     The import screen/flow itself is a separate feature to spec — this
@@ -104,14 +114,21 @@ you set an existing account's balance, never create/edit/delete one (see
   - [AccountTabs.svelte](../src/lib/components/AccountTabs.svelte) /
     [Home.svelte](../src/pages/Home.svelte) — replace the hardcoded
     `['Personal Expense', 'Loans', 'All']` pill-tab row with "account name
-    + switch button" reading real accounts from the `accounts` store by
-    id (see open question below on what happens to "All").
+    + switch button" reading real accounts from the `accounts` store.
+    Home/Accounts/AddAccount can keep selecting/editing accounts by
+    `id` internally (it's still the store's primary key) — only what
+    *other stores* write into `transactions.account`/`recurring.account`
+    changes, back to the account's name.
   - [db.js](../src/lib/data/db.js) — `getCurrentBalance`,
-    `getMonthSummary`, `getTransactionsForMonth`, `getYearToDate` currently
-    filter by `t.account === accountName` (a name); these become
-    `accountId`-based and must also exclude transactions whose account is
-    soft-deleted. `getCurrentBalance` also changes to the naive-sum
-    calculation (requirement 21).
+    `getMonthSummary`, `getTransactionsForMonth`, `getYearToDate` take an
+    account **name** again (not id) and filter `t.account === accountName`,
+    while still excluding transactions whose account is soft-deleted
+    (look up the deleted-name set from `accounts`, same idea as
+    `getVisibleTransactions` had for ids). `getCurrentBalance` also
+    changes to the naive-sum calculation (requirement 22). A new
+    `updateAccountReferences(oldName, newName)` (mirroring
+    `updateCategoryReferences`) handles the rename cascade (requirement
+    21).
   - [App.svelte](../src/App.svelte) — create the default account on first
     boot (requirement 1) instead of nothing; hold current-screen state for
     the new tab bar and Settings sub-navigation.
@@ -119,10 +136,10 @@ you set an existing account's balance, never create/edit/delete one (see
 ### Data model
 - `accounts`: `{id, name, description, initialBalance, dateCreated,
   isDeleted}` — `currency` and `type` dropped from the current shape.
-- `transactions.account` (currently a name string) → `transactions.accountId`
-  (the account's `id`).
-- `recurring.account` → `recurring.accountId`, same reasoning, whenever
-  Recurring is built.
+  `id` stays the store's required primary key.
+- `transactions.account` / `recurring.account` (once Recurring is built)
+  stay plain name strings, same as before this spec ever introduced
+  `accountId` — reverted per requirement 20.
 - `exportAll()`/`importAll()` need no shape change — they already pass
   whatever's in each store through as-is, deleted rows included.
 
@@ -135,7 +152,7 @@ you set an existing account's balance, never create/edit/delete one (see
   Cards.
 
 ### Open questions
-None — "All" is dropped, confirmed.
+None.
 
 ### Acceptance criteria
 - [ ] First launch with zero accounts silently creates "Personal Expense"
@@ -152,8 +169,11 @@ None — "All" is dropped, confirmed.
       confirm) all work end to end; deleted accounts and their
       transactions vanish from every in-app view.
 - [ ] Add Account's form matches the agreed schema and both back/save work.
-- [ ] `transactions`/`recurring` reference accounts by `accountId`, and
-      renaming an account doesn't touch any transaction rows.
+- [ ] `transactions`/`recurring` reference accounts by name, and renaming
+      an account updates every transaction that referenced the old name.
+- [ ] Creating or renaming an account to a name already used by another
+      active account is rejected; reusing a soft-deleted account's old
+      name is allowed.
 - [ ] Balance shown equals `initialBalance` + sum of that account's
       transactions.
 - [ ] Exporting data includes soft-deleted accounts and their
@@ -162,5 +182,13 @@ None — "All" is dropped, confirmed.
 ### Notes
 Source: [PRD.md](../PRD.md). Cross-reference [TODO.md](../TODO.md) →
 "Accounts" and "After the migration is done" sections for the original
-app's balance-anchor behavior, which requirement 21 deliberately departs
+app's balance-anchor behavior, which requirement 22 deliberately departs
 from for now.
+
+This spec was originally built and shipped with `accountId`-based
+references (26 passing tests, verified in-browser). Requirements 20-21
+reverse that in favor of name-based references, to stay consistent with
+[specs/categories.md](categories.md). Implementing this means reverting
+the `accountId` plumbing in db.js/Home.svelte/tests back toward how it
+worked before the Accounts feature existed, plus adding the new
+rename-cascade function categories also needs.

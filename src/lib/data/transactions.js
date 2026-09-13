@@ -9,21 +9,21 @@
 import { getVisibleTransactions, getMonthSummary, getCurrentBalance, getYearToDate, computeBudgetStatus, getAll } from './db.js';
 import { currentYearMonth } from './format.js';
 
-export async function getRecentTransactions(limit = 6, accountId) {
+export async function getRecentTransactions(limit = 6, accountName) {
   const all = await getVisibleTransactions();
   return all
-    .filter(t => !accountId || t.accountId === accountId)
+    .filter(t => !accountName || t.account === accountName)
     .slice()
     .sort((a, b) => (b.date || '').localeCompare(a.date || ''))
     .slice(0, limit);
 }
 
-export async function getHomeSummary(accountId) {
+export async function getHomeSummary(accountName) {
   const ym = currentYearMonth();
   const [monthSummary, balance, ytd] = await Promise.all([
-    getMonthSummary(ym, accountId),
-    getCurrentBalance(accountId),
-    getYearToDate(new Date().getFullYear(), accountId)
+    getMonthSummary(ym, accountName),
+    getCurrentBalance(accountName),
+    getYearToDate(new Date().getFullYear(), accountName)
   ]);
   return { monthSummary, balance, ytd };
 }

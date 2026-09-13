@@ -13,7 +13,7 @@
 
   async function load() {
     const accounts = await getAccounts();
-    const balances = await Promise.all(accounts.map(a => getCurrentBalance(a.id)));
+    const balances = await Promise.all(accounts.map(a => getCurrentBalance(a.name)));
     rows = accounts.map((account, i) => ({ account, balance: balances[i] }));
   }
 

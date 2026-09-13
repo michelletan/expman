@@ -7,6 +7,7 @@
   let name = $state('');
   let description = $state('');
   let initialBalance = $state('0');
+  let error = $state('');
 
   onMount(async () => {
     if (!accountId) return;
@@ -19,13 +20,18 @@
 
   async function save() {
     if (!name.trim()) return;
+    error = '';
     const fields = { name: name.trim(), description: description.trim(), initialBalance: Number(initialBalance) || 0 };
-    if (accountId) {
-      await updateAccount(accountId, fields);
-    } else {
-      await createAccount(fields);
+    try {
+      if (accountId) {
+        await updateAccount(accountId, fields);
+      } else {
+        await createAccount(fields);
+      }
+      onSaved();
+    } catch (/** @type {any} */ err) {
+      error = err.message; // e.g. the name-uniqueness rejection from db.js
     }
-    onSaved();
   }
 </script>
 
@@ -49,6 +55,7 @@
       <span class="field-label">Initial balance</span>
       <input type="number" step="0.01" bind:value={initialBalance} />
     </label>
+    {#if error}<p class="error">{error}</p>{/if}
   </div>
 </div>
 
@@ -75,4 +82,5 @@
     background: var(--paper-dim); font-family: var(--font-body); font-size: 15px; color: var(--ink);
     box-sizing: border-box;
   }
+  .error { color: var(--rust); font-family: var(--font-body); font-size: 13px; margin: -8px 0 0; }
 </style>

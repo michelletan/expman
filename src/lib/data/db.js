@@ -6,17 +6,22 @@
 
   Object stores:
     transactions  - one row per expense/income entry, linked to an
-                    account via accountId (not account name)
-    categories    - {id, name, type, subcategories: [string]}
+                    account via account NAME (not id — see "accounts"
+                    below) and to a category the same way
+    categories    - {id, name, type, subcategories: [string]} — referenced
+                    elsewhere by name; id is just the store's primary key
     accounts      - {id, name, description, initialBalance, dateCreated,
                      isDeleted}  (soft-deleted accounts and their
                      transactions are hidden from every in-app view but
-                     kept for exportAll() — see getVisibleTransactions)
+                     kept for exportAll() — see getVisibleTransactions).
+                     Referenced elsewhere by name, same as categories —
+                     id is just the store's primary key. Names are unique
+                     among active accounts (see updateAccount).
     budgets       - {id, category, monthlyLimit}  (per-category, rollover
                      is CALCULATED at read time, not stored — see
                      computeBudgetStatus below)
-    recurring     - repeating transaction rules, linked to an account via
-                    accountId
+    recurring     - repeating transaction rules, linked to an account and
+                    a category by name, same as transactions
     cards         - {id, name, last4, color, cycleStartDay}
     meta          - plain key/value settings (theme, lastSyncedAt, ...)
 */
@@ -25,7 +30,7 @@ import { genId, todayISO } from './format.js';
 
 const DB_NAME = 'expman-db';
 const DB_VERSION = 1;
-const STORES = ['transactions', 'categories', 'accounts', 'budgets', 'recurring', 'cards', 'meta'];
+export const STORES = ['transactions', 'categories', 'accounts', 'budgets', 'recurring', 'cards', 'meta'];
 
 let _dbPromise = null;
 
@@ -108,7 +113,19 @@ export async function getAccount(id) {
   return get('accounts', id);
 }
 
+// Account names are how transactions/recurring rules link to an account
+// (see file header), so two active accounts can't share a name — throws
+// if `name` collides with another active account. A soft-deleted
+// account's name is excluded, so it becomes reusable again.
+async function assertUniqueAccountName(name, excludeId) {
+  const active = await getAccounts();
+  if (active.some(a => a.id !== excludeId && a.name === name)) {
+    throw new Error(`An account named "${name}" already exists.`);
+  }
+}
+
 export async function createAccount({ name, description = '', initialBalance = 0 }) {
+  await assertUniqueAccountName(name, null);
   const account = {
     id: genId('acct'),
     name,
@@ -121,13 +138,33 @@ export async function createAccount({ name, description = '', initialBalance = 0
   return account;
 }
 
+// Renaming cascades into every transaction/recurring row that referenced
+// the old name, same treatment categories get (updateCategoryReferences)
+// — otherwise those rows would silently point at a name nothing matches.
 export async function updateAccount(id, fields) {
   const existing = await get('accounts', id);
-  return put('accounts', { ...existing, ...fields });
+  if (fields.name && fields.name !== existing.name) {
+    await assertUniqueAccountName(fields.name, id);
+  }
+  const updated = await put('accounts', { ...existing, ...fields });
+  if (fields.name && fields.name !== existing.name) {
+    await updateAccountReferences(existing.name, fields.name);
+  }
+  return updated;
 }
 
 export async function softDeleteAccount(id) {
   return updateAccount(id, { isDeleted: true });
+}
+
+export async function updateAccountReferences(oldName, newName) {
+  const [txns, recurring] = await Promise.all([getAll('transactions'), getAll('recurring')]);
+  const txnMatches = txns.filter(t => t.account === oldName);
+  const recurringMatches = recurring.filter(r => r.account === oldName);
+  await Promise.all([
+    txnMatches.length ? putMany('transactions', txnMatches.map(t => ({ ...t, account: newName }))) : null,
+    recurringMatches.length ? putMany('recurring', recurringMatches.map(r => ({ ...r, account: newName }))) : null
+  ]);
 }
 
 // Called once at boot. Only creates the default account the very first
@@ -144,8 +181,8 @@ export async function ensureDefaultAccount() {
 // directly instead, so a full backup still contains everything.
 export async function getVisibleTransactions() {
   const [txns, accounts] = await Promise.all([getAll('transactions'), getAll('accounts')]);
-  const deletedIds = new Set(accounts.filter(a => a.isDeleted).map(a => a.id));
-  return txns.filter(t => !deletedIds.has(t.accountId));
+  const deletedNames = new Set(accounts.filter(a => a.isDeleted).map(a => a.name));
+  return txns.filter(t => !deletedNames.has(t.account));
 }
 
 // ---- backup / restore ----------------------------------------------------
@@ -205,13 +242,13 @@ export function monthKey(dateStr) {
   return dateStr ? dateStr.slice(0, 7) : null; // "2026-09-01" -> "2026-09"
 }
 
-export async function getTransactionsForMonth(yearMonth, accountId) {
+export async function getTransactionsForMonth(yearMonth, accountName) {
   const all = await getVisibleTransactions();
-  return all.filter(t => monthKey(t.date) === yearMonth && (!accountId || t.accountId === accountId));
+  return all.filter(t => monthKey(t.date) === yearMonth && (!accountName || t.account === accountName));
 }
 
-export async function getMonthSummary(yearMonth, accountId) {
-  const txns = await getTransactionsForMonth(yearMonth, accountId);
+export async function getMonthSummary(yearMonth, accountName) {
+  const txns = await getTransactionsForMonth(yearMonth, accountName);
   let expense = 0, income = 0;
   for (const t of txns) {
     if (t.type === 'income') income += t.amount;
@@ -224,22 +261,22 @@ export async function getMonthSummary(yearMonth, accountId) {
 // transactions ever. This deliberately replaces the previous
 // anchor-date-based calculation (per accounts spec decision) — simpler,
 // revisit if it causes problems once there's real transaction history.
-export async function getCurrentBalance(accountId) {
+export async function getCurrentBalance(accountName) {
   const [accounts, txns] = await Promise.all([getAll('accounts'), getVisibleTransactions()]);
-  const relevantAccounts = accountId ? accounts.filter(a => a.id === accountId) : accounts.filter(a => !a.isDeleted);
+  const relevantAccounts = accountName ? accounts.filter(a => a.name === accountName) : accounts.filter(a => !a.isDeleted);
   const base = relevantAccounts.reduce((sum, a) => sum + (a.initialBalance || 0), 0);
-  const relevantIds = new Set(relevantAccounts.map(a => a.id));
-  const relevant = txns.filter(t => relevantIds.has(t.accountId));
+  const relevantNames = new Set(relevantAccounts.map(a => a.name));
+  const relevant = txns.filter(t => relevantNames.has(t.account));
   const net = relevant.reduce((sum, t) => sum + (t.type === 'income' ? t.amount : -t.amount), 0);
   return base + net;
 }
 
-export async function getYearToDate(year, accountId) {
+export async function getYearToDate(year, accountName) {
   const all = await getVisibleTransactions();
   let expense = 0, income = 0;
   for (const t of all) {
     if (!t.date || !t.date.startsWith(String(year))) continue;
-    if (accountId && t.accountId !== accountId) continue;
+    if (accountName && t.account !== accountName) continue;
     if (t.type === 'income') income += t.amount; else expense += t.amount;
   }
   return { expense, income };
@@ -334,6 +371,109 @@ export async function getCategoriesSorted(type) {
   const all = await getAll('categories');
   const filtered = type ? all.filter(c => c.type === type) : all;
   return filtered.sort((a, b) => a.name.localeCompare(b.name));
+}
+
+// ---- categories -----------------------------------------------------------
+// Referenced elsewhere by NAME (like accounts, unlike nothing else in this
+// file), hard-deleted (no isDeleted flag), and names are unique across the
+// whole list regardless of type — see specs/categories.md.
+
+async function assertUniqueCategoryName(name, excludeId) {
+  const all = await getAll('categories');
+  if (all.some(c => c.id !== excludeId && c.name === name)) {
+    throw new Error(`A category named "${name}" already exists.`);
+  }
+}
+
+export async function createCategory({ name, type, subcategories = [] }) {
+  await assertUniqueCategoryName(name, null);
+  const category = { id: genId('cat'), name, type, subcategories };
+  await put('categories', category);
+  return category;
+}
+
+// Renaming cascades into every transaction that referenced the old name —
+// same treatment accounts get (updateAccountReferences).
+export async function updateCategory(id, fields) {
+  const existing = await get('categories', id);
+  if (fields.name && fields.name !== existing.name) {
+    await assertUniqueCategoryName(fields.name, id);
+  }
+  const updated = await put('categories', { ...existing, ...fields });
+  if (fields.name && fields.name !== existing.name) {
+    await updateCategoryReferences(existing.name, fields.name);
+  }
+  return updated;
+}
+
+// Hard delete — no soft-delete flag. Existing transactions keep showing
+// the deleted name as-is (specs/categories.md requirement 8).
+export async function removeCategory(id) {
+  return remove('categories', id);
+}
+
+export async function addSubcategory(id, name) {
+  const category = await get('categories', id);
+  if (category.subcategories.includes(name)) return category;
+  return put('categories', { ...category, subcategories: [...category.subcategories, name] });
+}
+
+// Cascades into transactions the same way a category rename does
+// (requirement 9) — delete (removeSubcategory) deliberately does not.
+export async function renameSubcategory(id, oldName, newName) {
+  const category = await get('categories', id);
+  const subcategories = category.subcategories.map(s => (s === oldName ? newName : s));
+  const updated = await put('categories', { ...category, subcategories });
+  await updateSubcategoryReferences(category.name, oldName, newName);
+  return updated;
+}
+
+export async function removeSubcategory(id, name) {
+  const category = await get('categories', id);
+  const subcategories = category.subcategories.filter(s => s !== name);
+  return put('categories', { ...category, subcategories });
+}
+
+export async function updateCategoryReferences(oldName, newName) {
+  const all = await getAll('transactions');
+  const matches = all.filter(t => t.category === oldName);
+  if (matches.length) await putMany('transactions', matches.map(t => ({ ...t, category: newName })));
+  return matches.length;
+}
+
+export async function updateSubcategoryReferences(categoryName, oldSub, newSub) {
+  const all = await getAll('transactions');
+  const matches = all.filter(t => t.category === categoryName && t.subcategory === oldSub);
+  if (matches.length) await putMany('transactions', matches.map(t => ({ ...t, subcategory: newSub })));
+  return matches.length;
+}
+
+export async function exportCategories() {
+  return { categories: await getAll('categories') };
+}
+
+// Full replace, not merge. Rejects (leaving the existing list untouched)
+// if the incoming list has duplicate names — a partial replace would
+// leave the store in a state nobody asked for.
+export async function importCategories(list) {
+  const names = list.map(c => c.name);
+  const uniqueNames = new Set(names);
+  if (uniqueNames.size !== names.length) {
+    throw new Error('That file has duplicate category names — import cancelled.');
+  }
+  const withIds = list.map(c => ({ ...c, id: c.id || genId('cat') }));
+  await clearStore('categories');
+  await putMany('categories', withIds);
+}
+
+// Boot-time default categories, scoped to just this store — mirrors
+// ensureDefaultAccount(), not the old whole-app ensureSeeded().
+export async function ensureDefaultCategories() {
+  const all = await getAll('categories');
+  if (all.length > 0) return;
+  const res = await fetch(import.meta.env.BASE_URL + 'data/default-categories.json');
+  const data = await res.json();
+  await putMany('categories', data.categories);
 }
 
 // Recurring rules (the `recurring` store) are just a schedule/label —

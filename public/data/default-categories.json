@@ -1,0 +1,12 @@
+{
+  "categories": [
+    { "id": "cat_food", "name": "Food", "type": "expense", "subcategories": ["Groceries", "Meals", "Snacks", "Drinks"] },
+    { "id": "cat_transport", "name": "Transport", "type": "expense", "subcategories": ["Public Transport", "Taxi", "Fuel"] },
+    { "id": "cat_shopping", "name": "Shopping", "type": "expense", "subcategories": ["Clothing", "Electronics", "Household"] },
+    { "id": "cat_bills", "name": "Bills", "type": "expense", "subcategories": ["Utilities", "Rent", "Phone/Internet"] },
+    { "id": "cat_entertainment", "name": "Entertainment", "type": "expense", "subcategories": ["Movies", "Subscriptions", "Hobbies"] },
+    { "id": "cat_health", "name": "Health", "type": "expense", "subcategories": ["Pharmacy", "Medical", "Fitness"] },
+    { "id": "cat_salary", "name": "Salary", "type": "income", "subcategories": ["Base Pay", "Bonus"] },
+    { "id": "cat_other_income", "name": "Other", "type": "income", "subcategories": ["Gift", "Interest", "Refund"] }
+  ]
+}

@@ -1,11 +1,13 @@
 <script>
-  let { onOpenAccounts } = $props();
+  let { onOpenAccounts, onOpenCategories } = $props();
 
-  // Only "Accounts" is spec'd so far — see specs/accounts.md. Other rows
-  // (Categories, Recurring, Budgets, Theme, Backup & Sync) are TODO.md's
-  // "More / Settings hub" list, not yet built.
+  // Only "Accounts" and "Categories" are spec'd so far — see
+  // specs/accounts.md and specs/categories.md. Other rows (Recurring,
+  // Budgets, Theme, Backup & Sync) are TODO.md's "More / Settings hub"
+  // list, not yet built.
   const options = $derived([
-    { label: 'Accounts', onClick: onOpenAccounts }
+    { label: 'Accounts', onClick: onOpenAccounts },
+    { label: 'Categories', onClick: onOpenCategories }
   ]);
 </script>
 
