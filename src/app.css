@@ -1,0 +1,12 @@
+@import './lib/styles/tokens.css';
+
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+html, body {
+  margin: 0; padding: 0;
+  background: var(--ink);
+  font-family: var(--font-body);
+  color: var(--ink);
+}
+
+button { cursor: pointer; }

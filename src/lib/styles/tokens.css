@@ -1,0 +1,52 @@
+/*
+  DESIGN TOKENS
+  -------------
+  Ported straight from the current app's css/theme.css. This is the
+  ONE file every theme (and future component) reads its colors from —
+  add a new theme by adding another [data-theme="..."] block here.
+*/
+
+:root {
+  /* Default theme: Midnight Gold */
+  --ink: #1C2333;
+  --paper: #F6EEDD;
+  --paper-dim: #EAE0C8;
+  --paper-line: #DDD0AE;
+  --accent: #C99A3B;
+  --accent-ink: #1C2333;
+
+  /* Semantic — fixed across all themes */
+  --green: #3F7D58;
+  --rust: #B54B3B;
+
+  /* Typography */
+  --font-display: 'Space Grotesk', system-ui, sans-serif;
+  --font-body: 'Inter', system-ui, sans-serif;
+}
+
+[data-theme="forest"] {
+  --ink: #1F2B26;
+  --paper: #EEF3EF;
+  --paper-dim: #DEE7E1;
+  --paper-line: #C9D6CD;
+  --accent: #2C7A7B;
+  --accent-ink: #FFFFFF;
+}
+
+[data-theme="plum"] {
+  --ink: #2B2138;
+  --paper: #F6EFF3;
+  --paper-dim: #E9DEE6;
+  --paper-line: #D8C7D4;
+  --accent: #8C5A82;
+  --accent-ink: #FFFFFF;
+}
+
+[data-theme="harbor"] {
+  --ink: #16324F;
+  --paper: #EEF5F7;
+  --paper-dim: #DCEAEE;
+  --paper-line: #C3DCE3;
+  --accent: #2E86AB;
+  --accent-ink: #FFFFFF;
+}
