@@ -5,6 +5,7 @@ import {
   addSubcategory, renameSubcategory, softDeleteSubcategory,
   moveCategory, moveSubcategory, importCategories
 } from '../src/lib/data/db.js';
+import { CATEGORY_COLORS } from '../src/lib/data/format.js';
 import { resetDB } from './helpers.js';
 
 beforeEach(resetDB);
@@ -25,6 +26,36 @@ describe('createCategory', () => {
     await createCategory({ name: 'Other', type: 'expense' });
     const second = await createCategory({ name: 'Other', type: 'income' });
     expect(second.name).toBe('Other');
+  });
+});
+
+// specs/categories.md — requirements 10g-10i (color)
+describe('category color', () => {
+  it('assigns a palette color automatically when none is given', async () => {
+    const a = await createCategory({ name: 'Food', type: 'expense' });
+    expect(CATEGORY_COLORS).toContain(a.color);
+  });
+
+  it('honors an explicit color', async () => {
+    const a = await createCategory({ name: 'Food', type: 'expense', color: CATEGORY_COLORS[3] });
+    expect(a.color).toBe(CATEGORY_COLORS[3]);
+  });
+
+  it('an update can change the color', async () => {
+    const a = await createCategory({ name: 'Food', type: 'expense' });
+    await updateCategory(a.id, { color: CATEGORY_COLORS[5] });
+    const [updated] = await getCategoriesSorted('expense');
+    expect(updated.color).toBe(CATEGORY_COLORS[5]);
+  });
+
+  it('assigns a color to a legacy row that predates this feature, and persists it', async () => {
+    await put('categories', { id: 'c1', name: 'Food', type: 'expense', order: 0, isDeleted: false, subcategories: [] });
+
+    const [category] = await getCategoriesSorted('expense');
+    expect(CATEGORY_COLORS).toContain(category.color);
+
+    const persisted = (await getAll('categories'))[0];
+    expect(persisted.color).toBe(category.color); // migration wrote it back, not just an in-memory patch
   });
 });
 

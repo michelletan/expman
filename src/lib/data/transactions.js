@@ -9,6 +9,11 @@
 import { getVisibleTransactions, getMonthSummary, getCurrentBalance, getYearToDate, computeBudgetStatus, getAll } from './db.js';
 import { currentYearMonth } from './format.js';
 
+// Neutral fallback for a transaction with no category (or one that
+// somehow doesn't resolve) — not part of the picker palette, so it never
+// collides with a real category's color.
+const UNCATEGORISED_COLOR = '#9CA3AF';
+
 export async function getRecentTransactions(limit = 6, accountId) {
   const all = await getVisibleTransactions();
   const recent = all
@@ -34,8 +39,9 @@ export async function resolveTransactionLabels(txns) {
     const category = t.categoryId ? categoryById.get(t.categoryId) : null;
     const subcategory = category?.subcategories.find(s => s.id === t.subcategoryId);
     const categoryLabel = category ? (subcategory ? `${category.name} / ${subcategory.name}` : category.name) : 'Uncategorised';
+    const categoryColor = category?.color ?? UNCATEGORISED_COLOR;
     const paymentLabel = !t.paymentMethod || t.paymentMethod === 'cash' ? 'Cash' : (cardById.get(t.paymentMethod)?.name ?? 'Card');
-    return { ...t, categoryLabel, paymentLabel };
+    return { ...t, categoryLabel, categoryColor, paymentLabel };
   });
 }
 

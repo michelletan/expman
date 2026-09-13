@@ -7,12 +7,13 @@
   } from '../lib/data/db.js';
   import CategoryEditCard from '../lib/components/CategoryEditCard.svelte';
   import CategoryImportExport from '../lib/components/CategoryImportExport.svelte';
+  import { CATEGORY_COLORS } from '../lib/data/format.js';
 
   let { onBack } = $props();
 
   // Each sub tracks its own id (null = not yet saved) so save() can tell
   // add/rename/remove apart without relying on name matching.
-  /** @typedef {{ name: string, type: string, subs: {id: string|null, original: string, current: string}[], removed: string[] }} Draft */
+  /** @typedef {{ name: string, type: string, color: string, subs: {id: string|null, original: string, current: string}[], removed: string[] }} Draft */
 
   let categories = $state([]);
   let expanded = $state(new Set());
@@ -44,6 +45,7 @@
     draft = {
       name: category.name,
       type: category.type,
+      color: category.color,
       subs: category.subcategories.map(s => ({ id: s.id, original: s.name, current: s.name })),
       removed: []
     };
@@ -63,7 +65,7 @@
 
   function startNew() {
     editingId = 'new';
-    draft = { name: '', type: 'expense', subs: [], removed: [] };
+    draft = { name: '', type: 'expense', color: CATEGORY_COLORS[categories.length % CATEGORY_COLORS.length], subs: [], removed: [] };
   }
 
   function cancelEdit() {
@@ -92,10 +94,10 @@
     if (!draft || !draft.name.trim()) return;
     let id = editingId === 'new' ? null : editingId;
     if (!id) {
-      const created = await createCategory({ name: draft.name.trim(), type: draft.type });
+      const created = await createCategory({ name: draft.name.trim(), type: draft.type, color: draft.color });
       id = created.id;
     } else {
-      await updateCategory(id, { name: draft.name.trim(), type: draft.type });
+      await updateCategory(id, { name: draft.name.trim(), type: draft.type, color: draft.color });
     }
     for (const sub of draft.subs) {
       const current = sub.current.trim();
@@ -141,7 +143,7 @@
             () => moveCategoryOrder(category.id, 'up'), () => moveCategoryOrder(category.id, 'down')
           )}
           <button class="cat-main" onclick={() => toggleExpand(category.id)}>
-            <span class="cat-name">{category.name}</span>
+            <span class="cat-name"><span class="color-dot" style:background={category.color}></span>{category.name}</span>
             <span class="chev">{expanded.has(category.id) ? '⌄' : '›'}</span>
           </button>
           <button class="icon-btn" onclick={() => startEdit(category)} aria-label="Edit {category.name}">✎</button>
@@ -242,6 +244,8 @@
     padding: 12px 14px; border-radius: 10px; background: var(--paper-dim); border: none;
     font-family: var(--font-body); font-size: 14.5px; font-weight: 700; color: var(--ink);
   }
+  .cat-name { display: inline-flex; align-items: center; gap: 8px; }
+  .color-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; box-shadow: 0 0 0 1px rgba(0,0,0,.08) inset; }
   .chev { opacity: .4; }
   .icon-btn {
     width: 40px; border-radius: 10px; background: var(--paper-dim); border: none;

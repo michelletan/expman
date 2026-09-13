@@ -67,6 +67,21 @@ original name-based-reference + hard-delete design — see Notes.)
     categories to begin with; this drops the same-category uniqueness
     this spec used to require too.)
 
+**Color**
+10g. Each category SHALL have a `color` (a hex string), picked from a
+     fixed palette — not a free-form picker — shown as a row of swatches
+     in inline edit mode (requirements 5-7); tapping one sets `color` on
+     the draft, applied on save like any other field.
+10h. THE APP SHALL show a small color dot next to a category's name
+     wherever it's listed: the Categories screen's browse rows, the
+     Category Picker (Add Transaction), and each transaction's category
+     badge (replacing the badge's current hardcoded income/expense
+     green/rust — see specs/transactions.md's TransactionRow).
+10i. A category created without an explicit color (including rows that
+     predate this feature) SHALL get one assigned from the palette
+     automatically — same lazy, normalize-on-read approach as `order`/
+     subcategory `id` (requirement 10e), not a dedicated migration step.
+
 **Reordering**
 10a. Each category row SHALL show up/down buttons that move it one
      position within its own type group (Income and Expense each have
@@ -149,10 +164,11 @@ original name-based-reference + hard-delete design — see Notes.)
   cover.
 
 ### Data model
-- `categories`: `{id, name, type, order, isDeleted, subcategories:
+- `categories`: `{id, name, type, order, isDeleted, color, subcategories:
   [{id, name, order, isDeleted}]}`. Every subcategory now has its own
   `id` — it's an addressable, individually soft-deletable row-like entry,
-  not just a display string.
+  not just a display string. `color` is a hex string from the fixed
+  palette exported alongside the other display constants in `format.js`.
 - `transactions.categoryId` / `transactions.subcategoryId` (renamed from
   `.category`/`.subcategory`) store ids, resolved live against the
   `categories` store — settled per requirement 9.

@@ -1,41 +1,41 @@
 {
   "categories": [
-    { "id": "cat_food", "name": "Food", "type": "expense", "order": 0, "isDeleted": false, "subcategories": [
+    { "id": "cat_food", "name": "Food", "type": "expense", "order": 0, "isDeleted": false, "color": "#E07A5F", "subcategories": [
       { "id": "sub_food_groceries", "name": "Groceries", "order": 0, "isDeleted": false },
       { "id": "sub_food_meals", "name": "Meals", "order": 1, "isDeleted": false },
       { "id": "sub_food_snacks", "name": "Snacks", "order": 2, "isDeleted": false },
       { "id": "sub_food_drinks", "name": "Drinks", "order": 3, "isDeleted": false }
     ] },
-    { "id": "cat_transport", "name": "Transport", "type": "expense", "order": 1, "isDeleted": false, "subcategories": [
+    { "id": "cat_transport", "name": "Transport", "type": "expense", "order": 1, "isDeleted": false, "color": "#3D9970", "subcategories": [
       { "id": "sub_transport_public", "name": "Public Transport", "order": 0, "isDeleted": false },
       { "id": "sub_transport_taxi", "name": "Taxi", "order": 1, "isDeleted": false },
       { "id": "sub_transport_fuel", "name": "Fuel", "order": 2, "isDeleted": false }
     ] },
-    { "id": "cat_shopping", "name": "Shopping", "type": "expense", "order": 2, "isDeleted": false, "subcategories": [
+    { "id": "cat_shopping", "name": "Shopping", "type": "expense", "order": 2, "isDeleted": false, "color": "#4C6EF5", "subcategories": [
       { "id": "sub_shopping_clothing", "name": "Clothing", "order": 0, "isDeleted": false },
       { "id": "sub_shopping_electronics", "name": "Electronics", "order": 1, "isDeleted": false },
       { "id": "sub_shopping_household", "name": "Household", "order": 2, "isDeleted": false }
     ] },
-    { "id": "cat_bills", "name": "Bills", "type": "expense", "order": 3, "isDeleted": false, "subcategories": [
+    { "id": "cat_bills", "name": "Bills", "type": "expense", "order": 3, "isDeleted": false, "color": "#F4A261", "subcategories": [
       { "id": "sub_bills_utilities", "name": "Utilities", "order": 0, "isDeleted": false },
       { "id": "sub_bills_rent", "name": "Rent", "order": 1, "isDeleted": false },
       { "id": "sub_bills_phone", "name": "Phone/Internet", "order": 2, "isDeleted": false }
     ] },
-    { "id": "cat_entertainment", "name": "Entertainment", "type": "expense", "order": 4, "isDeleted": false, "subcategories": [
+    { "id": "cat_entertainment", "name": "Entertainment", "type": "expense", "order": 4, "isDeleted": false, "color": "#9C6ADE", "subcategories": [
       { "id": "sub_entertainment_movies", "name": "Movies", "order": 0, "isDeleted": false },
       { "id": "sub_entertainment_subscriptions", "name": "Subscriptions", "order": 1, "isDeleted": false },
       { "id": "sub_entertainment_hobbies", "name": "Hobbies", "order": 2, "isDeleted": false }
     ] },
-    { "id": "cat_health", "name": "Health", "type": "expense", "order": 5, "isDeleted": false, "subcategories": [
+    { "id": "cat_health", "name": "Health", "type": "expense", "order": 5, "isDeleted": false, "color": "#2A9D8F", "subcategories": [
       { "id": "sub_health_pharmacy", "name": "Pharmacy", "order": 0, "isDeleted": false },
       { "id": "sub_health_medical", "name": "Medical", "order": 1, "isDeleted": false },
       { "id": "sub_health_fitness", "name": "Fitness", "order": 2, "isDeleted": false }
     ] },
-    { "id": "cat_salary", "name": "Salary", "type": "income", "order": 0, "isDeleted": false, "subcategories": [
+    { "id": "cat_salary", "name": "Salary", "type": "income", "order": 0, "isDeleted": false, "color": "#E63946", "subcategories": [
       { "id": "sub_salary_base", "name": "Base Pay", "order": 0, "isDeleted": false },
       { "id": "sub_salary_bonus", "name": "Bonus", "order": 1, "isDeleted": false }
     ] },
-    { "id": "cat_other_income", "name": "Other", "type": "income", "order": 1, "isDeleted": false, "subcategories": [
+    { "id": "cat_other_income", "name": "Other", "type": "income", "order": 1, "isDeleted": false, "color": "#457B9D", "subcategories": [
       { "id": "sub_other_gift", "name": "Gift", "order": 0, "isDeleted": false },
       { "id": "sub_other_interest", "name": "Interest", "order": 1, "isDeleted": false },
       { "id": "sub_other_refund", "name": "Refund", "order": 2, "isDeleted": false }

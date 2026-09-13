@@ -1,4 +1,6 @@
 <script>
+  import { CATEGORY_COLORS } from '../data/format.js';
+
   /** @type {{ draft: object, showDelete: boolean, onSave: () => void, onCancel: () => void, onDelete?: () => void, onAddSub: () => void, onRemoveSub: (index: number) => void }} */
   let { draft = $bindable(), showDelete, onSave, onCancel, onDelete = () => {}, onAddSub, onRemoveSub } = $props();
 </script>
@@ -11,6 +13,16 @@
       <option value="income">Income</option>
     </select>
     <button class="icon-btn save-icon" onclick={onSave} disabled={!draft.name.trim()} aria-label="Save">✓</button>
+  </div>
+
+  <div class="color-row">
+    {#each CATEGORY_COLORS as color (color)}
+      <button
+        class="swatch" class:selected={draft.color === color}
+        style:background={color} onclick={() => draft.color = color}
+        aria-label="Color {color}"
+      ></button>
+    {/each}
   </div>
 
   <div class="subcat-edit-list">
@@ -46,6 +58,13 @@
   }
   .icon-btn.save-icon { background: var(--accent); color: var(--accent-ink); opacity: 1; }
   .icon-btn:disabled { opacity: .3; }
+
+  .color-row { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+  .swatch {
+    width: 26px; height: 26px; border-radius: 50%; border: 2px solid transparent;
+    padding: 0; box-shadow: 0 0 0 1px rgba(0,0,0,.08) inset;
+  }
+  .swatch.selected { border-color: var(--ink); }
 
   .subcat-edit-list { display: flex; flex-direction: column; gap: 6px; margin-bottom: 10px; }
   .subcat-edit-row { display: flex; gap: 6px; }

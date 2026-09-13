@@ -11,13 +11,15 @@
                     the current name live via that id — nothing here is
                     a snapshotted name string, and nothing needs a
                     cascade when the account/category is renamed.
-    categories    - {id, name, type, order, isDeleted, subcategories:
-                     [{id, name, order, isDeleted}]}. Soft-deleted
-                     categories/subcategories drop out of every list but
-                     the row survives so old transactions keep resolving
-                     correctly — see getCategoriesSorted. Note: unlike
-                     accounts, a soft-deleted category does NOT hide its
-                     transactions from other views (see getVisibleTransactions).
+    categories    - {id, name, type, order, isDeleted, color,
+                     subcategories: [{id, name, order, isDeleted}]}.
+                     Soft-deleted categories/subcategories drop out of
+                     every list but the row survives so old transactions
+                     keep resolving correctly — see getCategoriesSorted.
+                     Note: unlike accounts, a soft-deleted category does
+                     NOT hide its transactions from other views (see
+                     getVisibleTransactions). `color` is a hex string
+                     from CATEGORY_COLORS in format.js.
     accounts      - {id, name, description, initialBalance, dateCreated,
                      isDeleted}  (soft-deleted accounts and their
                      transactions are hidden from every in-app view but
@@ -27,11 +29,13 @@
                      computeBudgetStatus below)
     recurring     - repeating transaction rules, linked to an account and
                     a category by id, same as transactions
-    cards         - {id, name, last4, color, cycleStartDay}
+    cards         - {id, name, resetDate, targetSpend: [{categoryId,
+                    amount}], isDeleted, dateCreated}  soft-deleted, no
+                    uniqueness/cascade — see specs/cards.md
     meta          - plain key/value settings (theme, lastSyncedAt, ...)
 */
 
-import { genId, todayISO } from './format.js';
+import { genId, todayISO, CATEGORY_COLORS } from './format.js';
 
 const DB_NAME = 'expman-db';
 const DB_VERSION = 1;
@@ -432,15 +436,19 @@ function normalizeSubs(subcategories) {
   });
 }
 
-// Rows that predate ordering/soft-delete have no `order` (categories), or
-// subcategories missing `order`/`id`/`isDeleted`. Assigns `order` from
-// each category's current alphabetical position within its type (so
-// nothing visually jumps the first time this runs), normalizes
-// subcategory shape, then writes back only the rows that actually
-// changed — a no-op on every later call. Called from
-// getCategoriesSorted/moveCategory/moveSubcategory rather than as a
-// separate boot-time migration step.
-async function ensureCategoryOrdering() {
+// Rows that predate ordering/soft-delete/color have no `order` (or
+// `color`) on the category, or subcategories missing `order`/`id`/
+// `isDeleted`. Assigns `order` from each category's current alphabetical
+// position within its type (so nothing visually jumps the first time
+// this runs), a palette `color`, normalizes subcategory shape, then
+// writes back only the rows that actually changed — a no-op on every
+// later call. Exported so App.svelte can also run it once at boot
+// (alongside ensureDefaultCategories()) — some reads (resolving a
+// transaction's category for display, budgets, Card Details) go through
+// plain getAll('categories') rather than getCategoriesSorted, and would
+// otherwise see un-migrated rows until something happens to call
+// getCategoriesSorted first.
+export async function ensureCategoryOrdering() {
   const all = await getAll('categories');
 
   const byType = {};
@@ -456,7 +464,7 @@ async function ensureCategoryOrdering() {
     });
   }
 
-  for (const c of all) {
+  all.forEach((c, i) => {
     const needsNormalizing = (c.subcategories || []).some(s => typeof s === 'string' || s.id == null || s.isDeleted == null);
     if (needsNormalizing) {
       c.subcategories = normalizeSubs(c.subcategories);
@@ -466,7 +474,11 @@ async function ensureCategoryOrdering() {
       c.isDeleted = false;
       if (!toWrite.includes(c)) toWrite.push(c);
     }
-  }
+    if (!c.color) {
+      c.color = CATEGORY_COLORS[i % CATEGORY_COLORS.length];
+      if (!toWrite.includes(c)) toWrite.push(c);
+    }
+  });
 
   if (toWrite.length) await putMany('categories', toWrite);
   return all;
@@ -488,11 +500,12 @@ export async function getCategoriesSorted(type) {
   return filtered.sort((a, b) => a.order - b.order);
 }
 
-export async function createCategory({ name, type, subcategories = [] }) {
+export async function createCategory({ name, type, subcategories = [], color }) {
   const all = await getAll('categories');
   const maxOrder = all.reduce((m, c) => (c.type === type && c.order != null ? Math.max(m, c.order) : m), -1);
   const category = {
     id: genId('cat'), name, type, order: maxOrder + 1, isDeleted: false,
+    color: color || CATEGORY_COLORS[all.length % CATEGORY_COLORS.length],
     subcategories: normalizeSubs(subcategories)
   };
   await put('categories', category);
@@ -585,6 +598,40 @@ export async function ensureDefaultCategories() {
   const res = await fetch(import.meta.env.BASE_URL + 'data/default-categories.json');
   const data = await res.json();
   await putMany('categories', data.categories);
+}
+
+// ---- cards ------------------------------------------------------------
+// Soft-delete, same shape as accounts — but no uniqueness check and no
+// rename-cascade, since nothing references a card by name or id yet (no
+// transactions.cardId — see specs/cards.md). targetSpend entries
+// reference a category by id, resolved live like everything else.
+
+export async function getCards() {
+  const all = await getAll('cards');
+  return all.filter(c => !c.isDeleted);
+}
+
+export async function getCard(id) {
+  return get('cards', id);
+}
+
+/** @param {{ name: string, resetDate: number, targetSpend?: {categoryId: string, amount: number}[] }} fields */
+export async function createCard({ name, resetDate, targetSpend = [] }) {
+  const card = {
+    id: genId('card'), name, resetDate: Number(resetDate),
+    targetSpend, isDeleted: false, dateCreated: todayISO()
+  };
+  await put('cards', card);
+  return card;
+}
+
+export async function updateCard(id, fields) {
+  const existing = await get('cards', id);
+  return put('cards', { ...existing, ...fields });
+}
+
+export async function softDeleteCard(id) {
+  return updateCard(id, { isDeleted: true });
 }
 
 // Recurring rules (the `recurring` store) are just a schedule/label —

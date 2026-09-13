@@ -20,7 +20,9 @@
     <div class="list">
       <button class="uncategorised-row" onclick={() => onSelect(null, null, 'Uncategorised')}>Uncategorised</button>
       {#each categories as category (category.id)}
-        <button class="cat-header" onclick={() => onSelect(category.id, null, category.name)}>{category.name}</button>
+        <button class="cat-header" onclick={() => onSelect(category.id, null, category.name)}>
+          <span class="color-dot" style:background={category.color}></span>{category.name}
+        </button>
         {#each category.subcategories as sub (sub.id)}
           <button class="sub-row" onclick={() => onSelect(category.id, sub.id, category.name + ' / ' + sub.name)}>
             {sub.name}
@@ -52,6 +54,7 @@
     font-family: var(--font-body); color: var(--ink);
   }
   .uncategorised-row { font-weight: 600; font-size: 14px; opacity: .7; }
-  .cat-header { font-weight: 700; font-size: 14px; margin-top: 4px; }
+  .cat-header { font-weight: 700; font-size: 14px; margin-top: 4px; display: flex; align-items: center; gap: 8px; }
   .sub-row { font-size: 13.5px; padding-left: 24px; opacity: .85; }
+  .color-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; box-shadow: 0 0 0 1px rgba(0,0,0,.08) inset; }
 </style>
