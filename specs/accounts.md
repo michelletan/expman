@@ -73,22 +73,20 @@ you set an existing account's balance, never create/edit/delete one (see
 19. Add Account SHALL show a back button and a save button.
 
 **Account references (data integrity)**
-20. Every other store that references an account (`transactions.account`,
-    and `recurring.account` once Recurring is built) SHALL store the
-    account's **name**, not its id — reverting the earlier `accountId`
-    approach so accounts follow the same rule as Categories
-    (specs/categories.md requirement 12): reference by name.
-21. Renaming an account SHALL cascade: every transaction (and recurring
-    rule, once built) referencing the old name gets updated to the new
-    name — same treatment as the categories rename-cascade decision
-    (specs/categories.md requirement 9), and the same pattern
-    `updateRecurringInstances` already uses for category-linked rows.
-22. Account names SHALL be unique among **active (non-deleted)**
-    accounts. Creating or renaming an account to a name that collides
-    with another active account SHALL be rejected with an error. A
-    soft-deleted account's old name becomes reusable again (same active-
-    only uniqueness rule categories uses, specs/categories.md requirement
-    10).
+20. Every other store that references an account (`transactions.accountId`,
+    and `recurring.accountId` once Recurring is built) SHALL store the
+    account's **id**, not its name — settled project-wide (see
+    specs/categories.md's matching decision): reference by id, resolved
+    live wherever a name needs to be displayed or exported, never
+    snapshotted or cascaded.
+21. Renaming an account is therefore a single-field update — no cascade
+    function needed. Every transaction referencing the account by id
+    automatically shows the new name the next time it's displayed,
+    because display always resolves the current name live via id.
+22. Account names are **not** required unique. Since nothing references
+    an account by name anymore, two accounts can share a name with no
+    ambiguity — dropping the uniqueness check (and its rejection-error
+    UX) that name-based references required.
 
 **Balance**
 23. An account's current balance SHALL be computed as `initialBalance +
@@ -114,21 +112,15 @@ you set an existing account's balance, never create/edit/delete one (see
   - [AccountTabs.svelte](../src/lib/components/AccountTabs.svelte) /
     [Home.svelte](../src/pages/Home.svelte) — replace the hardcoded
     `['Personal Expense', 'Loans', 'All']` pill-tab row with "account name
-    + switch button" reading real accounts from the `accounts` store.
-    Home/Accounts/AddAccount can keep selecting/editing accounts by
-    `id` internally (it's still the store's primary key) — only what
-    *other stores* write into `transactions.account`/`recurring.account`
-    changes, back to the account's name.
+    + switch button" reading real accounts from the `accounts` store,
+    selecting by `id`.
   - [db.js](../src/lib/data/db.js) — `getCurrentBalance`,
     `getMonthSummary`, `getTransactionsForMonth`, `getYearToDate` take an
-    account **name** again (not id) and filter `t.account === accountName`,
-    while still excluding transactions whose account is soft-deleted
-    (look up the deleted-name set from `accounts`, same idea as
-    `getVisibleTransactions` had for ids). `getCurrentBalance` also
-    changes to the naive-sum calculation (requirement 22). A new
-    `updateAccountReferences(oldName, newName)` (mirroring
-    `updateCategoryReferences`) handles the rename cascade (requirement
-    21).
+    account **id** and filter `t.accountId === accountId`, while still
+    excluding transactions whose account is soft-deleted
+    (`getVisibleTransactions` filters by the deleted-id set). No
+    `assertUniqueAccountName` or `updateAccountReferences` — neither is
+    needed once references are by id.
   - [App.svelte](../src/App.svelte) — create the default account on first
     boot (requirement 1) instead of nothing; hold current-screen state for
     the new tab bar and Settings sub-navigation.
@@ -137,9 +129,8 @@ you set an existing account's balance, never create/edit/delete one (see
 - `accounts`: `{id, name, description, initialBalance, dateCreated,
   isDeleted}` — `currency` and `type` dropped from the current shape.
   `id` stays the store's required primary key.
-- `transactions.account` / `recurring.account` (once Recurring is built)
-  stay plain name strings, same as before this spec ever introduced
-  `accountId` — reverted per requirement 20.
+- `transactions.accountId` / `recurring.accountId` (once Recurring is
+  built) store the account's `id` — settled per requirement 20.
 - `exportAll()`/`importAll()` need no shape change — they already pass
   whatever's in each store through as-is, deleted rows included.
 
@@ -169,11 +160,10 @@ None.
       confirm) all work end to end; deleted accounts and their
       transactions vanish from every in-app view.
 - [ ] Add Account's form matches the agreed schema and both back/save work.
-- [ ] `transactions`/`recurring` reference accounts by name, and renaming
-      an account updates every transaction that referenced the old name.
-- [ ] Creating or renaming an account to a name already used by another
-      active account is rejected; reusing a soft-deleted account's old
-      name is allowed.
+- [ ] `transactions`/`recurring` reference accounts by id; renaming an
+      account changes only that one row, and every transaction
+      referencing it shows the new name immediately (resolved live).
+- [ ] Two accounts can share the same name with no error or ambiguity.
 - [ ] Balance shown equals `initialBalance` + sum of that account's
       transactions.
 - [ ] Exporting data includes soft-deleted accounts and their
@@ -185,10 +175,10 @@ Source: [PRD.md](../PRD.md). Cross-reference [TODO.md](../TODO.md) →
 app's balance-anchor behavior, which requirement 22 deliberately departs
 from for now.
 
-This spec was originally built and shipped with `accountId`-based
-references (26 passing tests, verified in-browser). Requirements 20-21
-reverse that in favor of name-based references, to stay consistent with
-[specs/categories.md](categories.md). Implementing this means reverting
-the `accountId` plumbing in db.js/Home.svelte/tests back toward how it
-worked before the Accounts feature existed, plus adding the new
-rename-cascade function categories also needs.
+This spec has flip-flopped on referencing twice now: `accountId` →
+name-based (to match Categories' then-hard-delete design) → back to
+`accountId` (settled project-wide: id-based references, resolved live,
+with soft delete everywhere — see the equivalent decision now in
+specs/categories.md, which also gives up its hard-delete for this).
+This should be the final form — the tradeoffs (rename cost, uniqueness,
+export readability) were weighed explicitly before landing here.

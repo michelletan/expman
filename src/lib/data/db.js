@@ -1,27 +1,32 @@
 /*
   DATA/DB.JS
   ----------
-  Every component reads and writes data through the functions exported here; 
-  none of them should call indexedDB.* themselves. 
+  Every component reads and writes data through the functions exported here;
+  none of them should call indexedDB.* themselves.
 
   Object stores:
     transactions  - one row per expense/income entry, linked to an
-                    account via account NAME (not id — see "accounts"
-                    below) and to a category the same way
-    categories    - {id, name, type, subcategories: [string]} — referenced
-                    elsewhere by name; id is just the store's primary key
+                    account/category/subcategory by id (accountId,
+                    categoryId, subcategoryId). Display always resolves
+                    the current name live via that id — nothing here is
+                    a snapshotted name string, and nothing needs a
+                    cascade when the account/category is renamed.
+    categories    - {id, name, type, order, isDeleted, subcategories:
+                     [{id, name, order, isDeleted}]}. Soft-deleted
+                     categories/subcategories drop out of every list but
+                     the row survives so old transactions keep resolving
+                     correctly — see getCategoriesSorted. Note: unlike
+                     accounts, a soft-deleted category does NOT hide its
+                     transactions from other views (see getVisibleTransactions).
     accounts      - {id, name, description, initialBalance, dateCreated,
                      isDeleted}  (soft-deleted accounts and their
                      transactions are hidden from every in-app view but
                      kept for exportAll() — see getVisibleTransactions).
-                     Referenced elsewhere by name, same as categories —
-                     id is just the store's primary key. Names are unique
-                     among active accounts (see updateAccount).
-    budgets       - {id, category, monthlyLimit}  (per-category, rollover
+    budgets       - {id, categoryId, monthlyLimit}  (per-category, rollover
                      is CALCULATED at read time, not stored — see
                      computeBudgetStatus below)
     recurring     - repeating transaction rules, linked to an account and
-                    a category by name, same as transactions
+                    a category by id, same as transactions
     cards         - {id, name, last4, color, cycleStartDay}
     meta          - plain key/value settings (theme, lastSyncedAt, ...)
 */
@@ -102,7 +107,9 @@ export async function clearStore(storeName) {
 // ---- accounts -------------------------------------------------------------
 // Soft-delete only: deleting an account sets isDeleted instead of removing
 // the row, so its transaction history survives in the DB (and in
-// exportAll()) even though it disappears from every in-app view.
+// exportAll()) even though it disappears from every in-app view. Referenced
+// elsewhere by id (transactions.accountId) — renaming is a single-field
+// update, nothing to cascade, and names don't need to be unique.
 
 export async function getAccounts() {
   const all = await getAll('accounts');
@@ -113,19 +120,7 @@ export async function getAccount(id) {
   return get('accounts', id);
 }
 
-// Account names are how transactions/recurring rules link to an account
-// (see file header), so two active accounts can't share a name — throws
-// if `name` collides with another active account. A soft-deleted
-// account's name is excluded, so it becomes reusable again.
-async function assertUniqueAccountName(name, excludeId) {
-  const active = await getAccounts();
-  if (active.some(a => a.id !== excludeId && a.name === name)) {
-    throw new Error(`An account named "${name}" already exists.`);
-  }
-}
-
 export async function createAccount({ name, description = '', initialBalance = 0 }) {
-  await assertUniqueAccountName(name, null);
   const account = {
     id: genId('acct'),
     name,
@@ -138,33 +133,13 @@ export async function createAccount({ name, description = '', initialBalance = 0
   return account;
 }
 
-// Renaming cascades into every transaction/recurring row that referenced
-// the old name, same treatment categories get (updateCategoryReferences)
-// — otherwise those rows would silently point at a name nothing matches.
 export async function updateAccount(id, fields) {
   const existing = await get('accounts', id);
-  if (fields.name && fields.name !== existing.name) {
-    await assertUniqueAccountName(fields.name, id);
-  }
-  const updated = await put('accounts', { ...existing, ...fields });
-  if (fields.name && fields.name !== existing.name) {
-    await updateAccountReferences(existing.name, fields.name);
-  }
-  return updated;
+  return put('accounts', { ...existing, ...fields });
 }
 
 export async function softDeleteAccount(id) {
   return updateAccount(id, { isDeleted: true });
-}
-
-export async function updateAccountReferences(oldName, newName) {
-  const [txns, recurring] = await Promise.all([getAll('transactions'), getAll('recurring')]);
-  const txnMatches = txns.filter(t => t.account === oldName);
-  const recurringMatches = recurring.filter(r => r.account === oldName);
-  await Promise.all([
-    txnMatches.length ? putMany('transactions', txnMatches.map(t => ({ ...t, account: newName }))) : null,
-    recurringMatches.length ? putMany('recurring', recurringMatches.map(r => ({ ...r, account: newName }))) : null
-  ]);
 }
 
 // Called once at boot. Only creates the default account the very first
@@ -178,11 +153,13 @@ export async function ensureDefaultAccount() {
 // Transactions belonging to a soft-deleted account are excluded from
 // every read used by an in-app view (balances, activity, reports, budget
 // spend, ...). exportAll() deliberately calls getAll('transactions')
-// directly instead, so a full backup still contains everything.
+// directly instead, so a full backup still contains everything. Note:
+// this is account-specific — a soft-deleted CATEGORY does not hide its
+// transactions the same way (see specs/categories.md requirement 8).
 export async function getVisibleTransactions() {
   const [txns, accounts] = await Promise.all([getAll('transactions'), getAll('accounts')]);
-  const deletedNames = new Set(accounts.filter(a => a.isDeleted).map(a => a.name));
-  return txns.filter(t => !deletedNames.has(t.account));
+  const deletedIds = new Set(accounts.filter(a => a.isDeleted).map(a => a.id));
+  return txns.filter(t => !deletedIds.has(t.accountId));
 }
 
 // ---- backup / restore ----------------------------------------------------
@@ -242,13 +219,13 @@ export function monthKey(dateStr) {
   return dateStr ? dateStr.slice(0, 7) : null; // "2026-09-01" -> "2026-09"
 }
 
-export async function getTransactionsForMonth(yearMonth, accountName) {
+export async function getTransactionsForMonth(yearMonth, accountId) {
   const all = await getVisibleTransactions();
-  return all.filter(t => monthKey(t.date) === yearMonth && (!accountName || t.account === accountName));
+  return all.filter(t => monthKey(t.date) === yearMonth && (!accountId || t.accountId === accountId));
 }
 
-export async function getMonthSummary(yearMonth, accountName) {
-  const txns = await getTransactionsForMonth(yearMonth, accountName);
+export async function getMonthSummary(yearMonth, accountId) {
+  const txns = await getTransactionsForMonth(yearMonth, accountId);
   let expense = 0, income = 0;
   for (const t of txns) {
     if (t.type === 'income') income += t.amount;
@@ -261,43 +238,47 @@ export async function getMonthSummary(yearMonth, accountName) {
 // transactions ever. This deliberately replaces the previous
 // anchor-date-based calculation (per accounts spec decision) — simpler,
 // revisit if it causes problems once there's real transaction history.
-export async function getCurrentBalance(accountName) {
+export async function getCurrentBalance(accountId) {
   const [accounts, txns] = await Promise.all([getAll('accounts'), getVisibleTransactions()]);
-  const relevantAccounts = accountName ? accounts.filter(a => a.name === accountName) : accounts.filter(a => !a.isDeleted);
+  const relevantAccounts = accountId ? accounts.filter(a => a.id === accountId) : accounts.filter(a => !a.isDeleted);
   const base = relevantAccounts.reduce((sum, a) => sum + (a.initialBalance || 0), 0);
-  const relevantNames = new Set(relevantAccounts.map(a => a.name));
-  const relevant = txns.filter(t => relevantNames.has(t.account));
+  const relevantIds = new Set(relevantAccounts.map(a => a.id));
+  const relevant = txns.filter(t => relevantIds.has(t.accountId));
   const net = relevant.reduce((sum, t) => sum + (t.type === 'income' ? t.amount : -t.amount), 0);
   return base + net;
 }
 
-export async function getYearToDate(year, accountName) {
+export async function getYearToDate(year, accountId) {
   const all = await getVisibleTransactions();
   let expense = 0, income = 0;
   for (const t of all) {
     if (!t.date || !t.date.startsWith(String(year))) continue;
-    if (accountName && t.account !== accountName) continue;
+    if (accountId && t.accountId !== accountId) continue;
     if (t.type === 'income') income += t.amount; else expense += t.amount;
   }
   return { expense, income };
 }
 
 // Most-used subcategories overall — powers the "top 3" quick-pick chips
-// on the Add Expense screen.
+// on the Add Expense screen. Counts by id (categoryId/subcategoryId),
+// then resolves the current display names once at the end.
 export async function getTopSubcategories(limit = 3) {
-  const all = await getVisibleTransactions();
+  const [all, categories] = await Promise.all([getVisibleTransactions(), getAll('categories')]);
   const counts = {};
   for (const t of all) {
-    if (t.type !== 'expense' || !t.subcategory) continue;
-    const key = t.category + ' / ' + t.subcategory;
+    if (t.type !== 'expense' || !t.subcategoryId) continue;
+    const key = t.categoryId + ' / ' + t.subcategoryId;
     counts[key] = (counts[key] || 0) + 1;
   }
+  const categoryById = new Map(categories.map(c => [c.id, c]));
   return Object.entries(counts)
     .sort((a, b) => b[1] - a[1])
     .slice(0, limit)
     .map(([key]) => {
-      const [category, subcategory] = key.split(' / ');
-      return { category, subcategory };
+      const [categoryId, subcategoryId] = key.split(' / ');
+      const category = categoryById.get(categoryId);
+      const subcategory = category?.subcategories.find(s => s.id === subcategoryId);
+      return { categoryId, subcategoryId, category: category?.name, subcategory: subcategory?.name };
     });
 }
 
@@ -312,10 +293,11 @@ export async function getTopSubcategories(limit = 3) {
 // history can recurse up to 24 levels — querying IndexedDB fresh each
 // time (real async round-trips, not free) made the UI visibly lag;
 // filtering an already-fetched array is effectively instant.
-export async function computeBudgetStatus(category, yearMonth) {
-  const [budgets, allTxns] = await Promise.all([getAll('budgets'), getVisibleTransactions()]);
-  const budget = budgets.find(b => b.category === category);
+export async function computeBudgetStatus(categoryId, yearMonth) {
+  const [budgets, allTxns, categories] = await Promise.all([getAll('budgets'), getVisibleTransactions(), getAll('categories')]);
+  const budget = budgets.find(b => b.categoryId === categoryId);
   if (!budget) return null;
+  const categoryName = categories.find(c => c.id === categoryId)?.name ?? '';
 
   const byMonth = {}; // yearMonth -> transactions, built once
   for (const t of allTxns) {
@@ -330,7 +312,7 @@ export async function computeBudgetStatus(category, yearMonth) {
     const prevYm = prevDate.getFullYear() + '-' + String(prevDate.getMonth() + 1).padStart(2, '0');
 
     const txns = byMonth[ym] || [];
-    const spent = txns.filter(t => t.category === category && t.type === 'expense')
+    const spent = txns.filter(t => t.categoryId === categoryId && t.type === 'expense')
                        .reduce((s, t) => s + t.amount, 0);
 
     // Never roll over from before the budget existed — otherwise a
@@ -354,7 +336,8 @@ export async function computeBudgetStatus(category, yearMonth) {
 
   const result = availableFor(yearMonth);
   return {
-    category,
+    categoryId,
+    category: categoryName,
     limit: result.limit,
     rolledIn: result.rolledIn,
     totalAvailable: result.limit + result.rolledIn,
@@ -363,105 +346,164 @@ export async function computeBudgetStatus(category, yearMonth) {
   };
 }
 
-// IndexedDB's getAll() returns rows in key order (lexical string sort:
-// "cat_10" sorts before "cat_2"), which scrambles category lists in
-// the UI. This returns them sorted by name instead, for anywhere the
-// order is user-visible (category pickers, budget dropdowns).
-export async function getCategoriesSorted(type) {
-  const all = await getAll('categories');
-  const filtered = type ? all.filter(c => c.type === type) : all;
-  return filtered.sort((a, b) => a.name.localeCompare(b.name));
+// ---- categories -----------------------------------------------------------
+// Referenced elsewhere by id (transactions.categoryId/subcategoryId,
+// budgets.categoryId). Soft-deleted, like accounts — but unlike accounts,
+// a soft-deleted category/subcategory does NOT hide its transactions from
+// other views (see getVisibleTransactions and specs/categories.md
+// requirement 8). Names aren't required unique. See specs/categories.md.
+
+// A subcategory used to be a bare string, then {name, order}; it's now
+// {id, name, order, isDeleted}. Accepts any of those shapes on the way
+// in so rows that predate a given migration don't crash.
+function normalizeSubs(subcategories) {
+  return (subcategories || []).map((s, i) => {
+    if (typeof s === 'string') return { id: genId('sub'), name: s, order: i, isDeleted: false };
+    return { ...s, id: s.id || genId('sub'), order: s.order ?? i, isDeleted: s.isDeleted ?? false };
+  });
 }
 
-// ---- categories -----------------------------------------------------------
-// Referenced elsewhere by NAME (like accounts, unlike nothing else in this
-// file), hard-deleted (no isDeleted flag), and names are unique across the
-// whole list regardless of type — see specs/categories.md.
-
-async function assertUniqueCategoryName(name, excludeId) {
+// Rows that predate ordering/soft-delete have no `order` (categories), or
+// subcategories missing `order`/`id`/`isDeleted`. Assigns `order` from
+// each category's current alphabetical position within its type (so
+// nothing visually jumps the first time this runs), normalizes
+// subcategory shape, then writes back only the rows that actually
+// changed — a no-op on every later call. Called from
+// getCategoriesSorted/moveCategory/moveSubcategory rather than as a
+// separate boot-time migration step.
+async function ensureCategoryOrdering() {
   const all = await getAll('categories');
-  if (all.some(c => c.id !== excludeId && c.name === name)) {
-    throw new Error(`A category named "${name}" already exists.`);
+
+  const byType = {};
+  for (const c of all) (byType[c.type] ??= []).push(c);
+
+  const toWrite = [];
+  for (const group of Object.values(byType)) {
+    const maxOrder = group.reduce((m, c) => (c.order != null ? Math.max(m, c.order) : m), -1);
+    const missing = group.filter(c => c.order == null).sort((a, b) => a.name.localeCompare(b.name));
+    missing.forEach((c, i) => {
+      c.order = maxOrder + 1 + i;
+      toWrite.push(c);
+    });
   }
+
+  for (const c of all) {
+    const needsNormalizing = (c.subcategories || []).some(s => typeof s === 'string' || s.id == null || s.isDeleted == null);
+    if (needsNormalizing) {
+      c.subcategories = normalizeSubs(c.subcategories);
+      if (!toWrite.includes(c)) toWrite.push(c);
+    }
+    if (c.isDeleted == null) {
+      c.isDeleted = false;
+      if (!toWrite.includes(c)) toWrite.push(c);
+    }
+  }
+
+  if (toWrite.length) await putMany('categories', toWrite);
+  return all;
+}
+
+// IndexedDB's getAll() returns rows in key order (lexical string sort:
+// "cat_10" sorts before "cat_2"), which scrambles category lists in the
+// UI. This returns active categories (and each one's active
+// subcategories) sorted by `order`, for anywhere the order is
+// user-visible (category pickers, budget dropdowns, the Categories
+// screen) — soft-deleted rows are excluded here but still resolvable via
+// getAll('categories') for anything reading a transaction's category by id.
+export async function getCategoriesSorted(type) {
+  const all = await ensureCategoryOrdering();
+  const filtered = all.filter(c => !c.isDeleted && (!type || c.type === type));
+  for (const c of filtered) {
+    c.subcategories = c.subcategories.filter(s => !s.isDeleted).sort((a, b) => a.order - b.order);
+  }
+  return filtered.sort((a, b) => a.order - b.order);
 }
 
 export async function createCategory({ name, type, subcategories = [] }) {
-  await assertUniqueCategoryName(name, null);
-  const category = { id: genId('cat'), name, type, subcategories };
+  const all = await getAll('categories');
+  const maxOrder = all.reduce((m, c) => (c.type === type && c.order != null ? Math.max(m, c.order) : m), -1);
+  const category = {
+    id: genId('cat'), name, type, order: maxOrder + 1, isDeleted: false,
+    subcategories: normalizeSubs(subcategories)
+  };
   await put('categories', category);
   return category;
 }
 
-// Renaming cascades into every transaction that referenced the old name —
-// same treatment accounts get (updateAccountReferences).
 export async function updateCategory(id, fields) {
   const existing = await get('categories', id);
-  if (fields.name && fields.name !== existing.name) {
-    await assertUniqueCategoryName(fields.name, id);
-  }
-  const updated = await put('categories', { ...existing, ...fields });
-  if (fields.name && fields.name !== existing.name) {
-    await updateCategoryReferences(existing.name, fields.name);
-  }
-  return updated;
+  return put('categories', { ...existing, ...fields });
 }
 
-// Hard delete — no soft-delete flag. Existing transactions keep showing
-// the deleted name as-is (specs/categories.md requirement 8).
-export async function removeCategory(id) {
-  return remove('categories', id);
+export async function softDeleteCategory(id) {
+  return updateCategory(id, { isDeleted: true });
+}
+
+// Swaps `order` with the category's neighbor within its own (non-deleted)
+// type group — moving a category never crosses between Income and
+// Expense, and never swaps with a hidden, soft-deleted one. A no-op at
+// either edge of the group.
+export async function moveCategory(id, direction) {
+  const all = await ensureCategoryOrdering();
+  const category = all.find(c => c.id === id);
+  if (!category) return;
+  const group = all.filter(c => c.type === category.type && !c.isDeleted).sort((a, b) => a.order - b.order);
+  const idx = group.findIndex(c => c.id === id);
+  const swapIdx = direction === 'up' ? idx - 1 : idx + 1;
+  if (swapIdx < 0 || swapIdx >= group.length) return;
+  const other = group[swapIdx];
+  [category.order, other.order] = [other.order, category.order];
+  await putMany('categories', [category, other]);
+}
+
+// Same idea as moveCategory, but within one category's (non-deleted)
+// subcategory list.
+export async function moveSubcategory(categoryId, subcategoryId, direction) {
+  const all = await ensureCategoryOrdering();
+  const category = all.find(c => c.id === categoryId);
+  if (!category) return;
+  const sorted = category.subcategories.filter(s => !s.isDeleted).sort((a, b) => a.order - b.order);
+  const idx = sorted.findIndex(s => s.id === subcategoryId);
+  const swapIdx = direction === 'up' ? idx - 1 : idx + 1;
+  if (idx === -1 || swapIdx < 0 || swapIdx >= sorted.length) return;
+  const a = sorted[idx], b = sorted[swapIdx];
+  [a.order, b.order] = [b.order, a.order];
+  await put('categories', category);
 }
 
 export async function addSubcategory(id, name) {
   const category = await get('categories', id);
-  if (category.subcategories.includes(name)) return category;
-  return put('categories', { ...category, subcategories: [...category.subcategories, name] });
+  const subs = normalizeSubs(category.subcategories);
+  const maxOrder = subs.reduce((m, s) => Math.max(m, s.order ?? -1), -1);
+  const updated = [...subs, { id: genId('sub'), name, order: maxOrder + 1, isDeleted: false }];
+  return put('categories', { ...category, subcategories: updated });
 }
 
-// Cascades into transactions the same way a category rename does
-// (requirement 9) — delete (removeSubcategory) deliberately does not.
-export async function renameSubcategory(id, oldName, newName) {
-  const category = await get('categories', id);
-  const subcategories = category.subcategories.map(s => (s === oldName ? newName : s));
-  const updated = await put('categories', { ...category, subcategories });
-  await updateSubcategoryReferences(category.name, oldName, newName);
-  return updated;
-}
-
-export async function removeSubcategory(id, name) {
-  const category = await get('categories', id);
-  const subcategories = category.subcategories.filter(s => s !== name);
+export async function renameSubcategory(categoryId, subcategoryId, newName) {
+  const category = await get('categories', categoryId);
+  const subcategories = normalizeSubs(category.subcategories).map(s => (s.id === subcategoryId ? { ...s, name: newName } : s));
   return put('categories', { ...category, subcategories });
 }
 
-export async function updateCategoryReferences(oldName, newName) {
-  const all = await getAll('transactions');
-  const matches = all.filter(t => t.category === oldName);
-  if (matches.length) await putMany('transactions', matches.map(t => ({ ...t, category: newName })));
-  return matches.length;
-}
-
-export async function updateSubcategoryReferences(categoryName, oldSub, newSub) {
-  const all = await getAll('transactions');
-  const matches = all.filter(t => t.category === categoryName && t.subcategory === oldSub);
-  if (matches.length) await putMany('transactions', matches.map(t => ({ ...t, subcategory: newSub })));
-  return matches.length;
+export async function softDeleteSubcategory(categoryId, subcategoryId) {
+  const category = await get('categories', categoryId);
+  const subcategories = normalizeSubs(category.subcategories).map(s => (s.id === subcategoryId ? { ...s, isDeleted: true } : s));
+  return put('categories', { ...category, subcategories });
 }
 
 export async function exportCategories() {
   return { categories: await getAll('categories') };
 }
 
-// Full replace, not merge. Rejects (leaving the existing list untouched)
-// if the incoming list has duplicate names — a partial replace would
-// leave the store in a state nobody asked for.
+// Full replace, not merge — matches importAll()'s existing precedent.
+// No uniqueness validation: names don't need to be unique.
 export async function importCategories(list) {
-  const names = list.map(c => c.name);
-  const uniqueNames = new Set(names);
-  if (uniqueNames.size !== names.length) {
-    throw new Error('That file has duplicate category names — import cancelled.');
-  }
-  const withIds = list.map(c => ({ ...c, id: c.id || genId('cat') }));
+  const withIds = list.map(c => ({
+    ...c,
+    id: c.id || genId('cat'),
+    isDeleted: c.isDeleted ?? false,
+    subcategories: normalizeSubs(c.subcategories)
+  }));
   await clearStore('categories');
   await putMany('categories', withIds);
 }

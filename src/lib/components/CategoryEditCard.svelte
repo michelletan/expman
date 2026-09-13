@@ -1,6 +1,6 @@
 <script>
-  /** @type {{ draft: object, error: string, showDelete: boolean, onSave: () => void, onCancel: () => void, onDelete?: () => void, onAddSub: () => void, onRemoveSub: (index: number) => void }} */
-  let { draft = $bindable(), error, showDelete, onSave, onCancel, onDelete = () => {}, onAddSub, onRemoveSub } = $props();
+  /** @type {{ draft: object, showDelete: boolean, onSave: () => void, onCancel: () => void, onDelete?: () => void, onAddSub: () => void, onRemoveSub: (index: number) => void }} */
+  let { draft = $bindable(), showDelete, onSave, onCancel, onDelete = () => {}, onAddSub, onRemoveSub } = $props();
 </script>
 
 <div class="edit-card">
@@ -27,7 +27,6 @@
     <button class="delete-btn" onclick={onDelete}>Delete category</button>
   {/if}
   <button class="cancel-btn" onclick={onCancel}>Cancel</button>
-  {#if error}<p class="error">{error}</p>{/if}
 </div>
 
 <style>
@@ -69,5 +68,4 @@
   }
   .delete-btn { background: rgba(181,75,59,.12); color: var(--rust); }
   .cancel-btn { background: none; color: var(--ink); opacity: .55; }
-  .error { color: var(--rust); font-family: var(--font-body); font-size: 12.5px; margin: 8px 0 0; }
 </style>

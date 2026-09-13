@@ -24,21 +24,20 @@
     accountId = accounts[0]?.id ?? null;
   });
 
-  // $effect re-runs whenever a value it read synchronously
-  // (currentAccountName) changes — this is what makes switching accounts
-  // actually refetch and re-render, unlike the prototype's one-shot
-  // onMount. Data-layer queries key off the account's name (see
-  // specs/accounts.md); accountId only drives which account is selected
-  // in this component and in AccountSwitcher.
+  // $effect re-runs whenever a value it read synchronously (accountId)
+  // changes — this is what makes switching accounts actually refetch and
+  // re-render, unlike the prototype's one-shot onMount. Data-layer
+  // queries key off the account's id (see specs/accounts.md) and resolve
+  // its current name live wherever one needs to be displayed.
   $effect(() => {
-    if (accountId != null) loadData(currentAccountName);
+    if (accountId != null) loadData(accountId);
   });
 
-  async function loadData(accountName) {
+  async function loadData(id) {
     const [summary, budgetStatuses, recentTxns] = await Promise.all([
-      getHomeSummary(accountName),
+      getHomeSummary(id),
       getBudgetStatuses(3),
-      getRecentTransactions(6, accountName)
+      getRecentTransactions(6, id)
     ]);
     monthExpense = summary.monthSummary.expense;
     budgets = budgetStatuses;

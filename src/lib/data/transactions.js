@@ -9,21 +9,21 @@
 import { getVisibleTransactions, getMonthSummary, getCurrentBalance, getYearToDate, computeBudgetStatus, getAll } from './db.js';
 import { currentYearMonth } from './format.js';
 
-export async function getRecentTransactions(limit = 6, accountName) {
+export async function getRecentTransactions(limit = 6, accountId) {
   const all = await getVisibleTransactions();
   return all
-    .filter(t => !accountName || t.account === accountName)
+    .filter(t => !accountId || t.accountId === accountId)
     .slice()
     .sort((a, b) => (b.date || '').localeCompare(a.date || ''))
     .slice(0, limit);
 }
 
-export async function getHomeSummary(accountName) {
+export async function getHomeSummary(accountId) {
   const ym = currentYearMonth();
   const [monthSummary, balance, ytd] = await Promise.all([
-    getMonthSummary(ym, accountName),
-    getCurrentBalance(accountName),
-    getYearToDate(new Date().getFullYear(), accountName)
+    getMonthSummary(ym, accountId),
+    getCurrentBalance(accountId),
+    getYearToDate(new Date().getFullYear(), accountId)
   ]);
   return { monthSummary, balance, ytd };
 }
@@ -35,7 +35,7 @@ export async function getBudgetStatuses(limit = 3) {
   const ym = currentYearMonth();
   const budgets = await getAll('budgets');
   const statuses = await Promise.all(
-    budgets.slice(0, limit).map(b => computeBudgetStatus(b.category, ym))
+    budgets.slice(0, limit).map(b => computeBudgetStatus(b.categoryId, ym))
   );
   return statuses.filter(Boolean);
 }

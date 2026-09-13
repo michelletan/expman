@@ -1,5 +1,6 @@
 node_modules/
 dist/
-/public/data/seed.json
+data/seed.json
 .claude/
 CLAUDE.md
+PRD.md

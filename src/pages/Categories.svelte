@@ -1,15 +1,18 @@
 <script>
   import { onMount } from 'svelte';
   import {
-    getCategoriesSorted, createCategory, updateCategory, removeCategory,
-    addSubcategory, renameSubcategory, removeSubcategory
+    getCategoriesSorted, createCategory, updateCategory, softDeleteCategory,
+    addSubcategory, renameSubcategory, softDeleteSubcategory,
+    moveCategory, moveSubcategory
   } from '../lib/data/db.js';
   import CategoryEditCard from '../lib/components/CategoryEditCard.svelte';
   import CategoryImportExport from '../lib/components/CategoryImportExport.svelte';
 
   let { onBack } = $props();
 
-  /** @typedef {{ name: string, type: string, subs: {original: string|null, current: string}[], removed: string[] }} Draft */
+  // Each sub tracks its own id (null = not yet saved) so save() can tell
+  // add/rename/remove apart without relying on name matching.
+  /** @typedef {{ name: string, type: string, subs: {id: string|null, original: string, current: string}[], removed: string[] }} Draft */
 
   let categories = $state([]);
   let expanded = $state(new Set());
@@ -17,7 +20,6 @@
   let editingId = $state(null); // a category id, 'new', or null
   /** @type {Draft|null} */
   let draft = $state(null);
-  let error = $state('');
   let confirmDeleteOpen = $state(false);
   let importExportOpen = $state(false);
 
@@ -42,22 +44,31 @@
     draft = {
       name: category.name,
       type: category.type,
-      subs: category.subcategories.map(s => ({ original: s, current: s })),
+      subs: category.subcategories.map(s => ({ id: s.id, original: s.name, current: s.name })),
       removed: []
     };
-    error = '';
+  }
+
+  // Reordering persists immediately — it's not part of the edit-then-save
+  // flow (specs/categories.md requirement 10c).
+  async function moveCategoryOrder(id, direction) {
+    await moveCategory(id, direction);
+    await load();
+  }
+
+  async function moveSubcategoryOrder(categoryId, subcategoryId, direction) {
+    await moveSubcategory(categoryId, subcategoryId, direction);
+    await load();
   }
 
   function startNew() {
     editingId = 'new';
     draft = { name: '', type: 'expense', subs: [], removed: [] };
-    error = '';
   }
 
   function cancelEdit() {
     editingId = null;
     draft = null;
-    error = '';
     confirmDeleteOpen = false;
   }
 
@@ -65,13 +76,13 @@
   // while `draft` is set — the guards below are for the type-checker.
   function addSubRow() {
     if (!draft) return;
-    draft.subs = [...draft.subs, { original: null, current: '' }];
+    draft.subs = [...draft.subs, { id: null, original: '', current: '' }];
   }
 
   function removeSubRow(index) {
     if (!draft) return;
     const sub = draft.subs[index];
-    if (sub.original) draft.removed = [...draft.removed, sub.original];
+    if (sub.id) draft.removed = [...draft.removed, sub.id];
     draft.subs = draft.subs.filter((_, i) => i !== index);
   }
 
@@ -79,50 +90,56 @@
   // edits local `draft` state (specs/categories.md requirement 7).
   async function save() {
     if (!draft || !draft.name.trim()) return;
-    error = '';
-    try {
-      let id = editingId === 'new' ? null : editingId;
-      if (!id) {
-        const created = await createCategory({ name: draft.name.trim(), type: draft.type });
-        id = created.id;
-      } else {
-        await updateCategory(id, { name: draft.name.trim(), type: draft.type });
-      }
-      for (const sub of draft.subs) {
-        const current = sub.current.trim();
-        if (!current) continue;
-        if (sub.original == null) await addSubcategory(id, current);
-        else if (current !== sub.original) await renameSubcategory(id, sub.original, current);
-      }
-      for (const removedName of draft.removed) {
-        await removeSubcategory(id, removedName);
-      }
-      cancelEdit();
-      await load();
-    } catch (/** @type {any} */ err) {
-      error = err.message;
+    let id = editingId === 'new' ? null : editingId;
+    if (!id) {
+      const created = await createCategory({ name: draft.name.trim(), type: draft.type });
+      id = created.id;
+    } else {
+      await updateCategory(id, { name: draft.name.trim(), type: draft.type });
     }
+    for (const sub of draft.subs) {
+      const current = sub.current.trim();
+      if (!current) continue;
+      if (sub.id == null) await addSubcategory(id, current);
+      else if (current !== sub.original) await renameSubcategory(id, sub.id, current);
+    }
+    for (const removedId of draft.removed) {
+      await softDeleteSubcategory(id, removedId);
+    }
+    cancelEdit();
+    await load();
   }
 
   async function confirmDelete() {
-    await removeCategory(editingId);
+    await softDeleteCategory(editingId);
     cancelEdit();
     await load();
   }
 </script>
 
+{#snippet reorderButtons(atTop, atBottom, onUp, onDown)}
+  <div class="reorder-btns">
+    <button class="reorder-btn" disabled={atTop} onclick={onUp} aria-label="Move up">▲</button>
+    <button class="reorder-btn" disabled={atBottom} onclick={onDown} aria-label="Move down">▼</button>
+  </div>
+{/snippet}
+
 {#snippet categoryGroup(list, emptyLabel)}
   <div class="cat-list">
-    {#each list as category (category.id)}
+    {#each list as category, i (category.id)}
       {#if editingId === category.id}
         <CategoryEditCard
-          bind:draft {error}
+          bind:draft
           showDelete={true}
           onSave={save} onCancel={cancelEdit} onDelete={() => confirmDeleteOpen = true}
           onAddSub={addSubRow} onRemoveSub={removeSubRow}
         />
       {:else}
         <div class="cat-row">
+          {@render reorderButtons(
+            i === 0, i === list.length - 1,
+            () => moveCategoryOrder(category.id, 'up'), () => moveCategoryOrder(category.id, 'down')
+          )}
           <button class="cat-main" onclick={() => toggleExpand(category.id)}>
             <span class="cat-name">{category.name}</span>
             <span class="chev">{expanded.has(category.id) ? '⌄' : '›'}</span>
@@ -131,8 +148,17 @@
         </div>
         {#if expanded.has(category.id)}
           <div class="subcat-list">
-            {#each category.subcategories as sub}<span class="subcat-chip">{sub}</span>
-            {:else}<span class="subcat-empty">No subcategories</span>{/each}
+            {#each category.subcategories as sub, j (sub.id)}
+              <div class="subcat-row">
+                {@render reorderButtons(
+                  j === 0, j === category.subcategories.length - 1,
+                  () => moveSubcategoryOrder(category.id, sub.id, 'up'), () => moveSubcategoryOrder(category.id, sub.id, 'down')
+                )}
+                <span class="subcat-name">{sub.name}</span>
+              </div>
+            {:else}
+              <span class="subcat-empty">No subcategories</span>
+            {/each}
           </div>
         {/if}
       {/if}
@@ -152,7 +178,7 @@
   <div class="content">
     {#if editingId === 'new'}
       <CategoryEditCard
-        bind:draft {error}
+        bind:draft
         showDelete={false}
         onSave={save} onCancel={cancelEdit}
         onAddSub={addSubRow} onRemoveSub={removeSubRow}
@@ -175,7 +201,7 @@
   <div class="backdrop" role="button" tabindex="0" onclick={() => confirmDeleteOpen = false} onkeydown={(e) => e.key === 'Escape' && (confirmDeleteOpen = false)}>
     <div class="confirm-sheet" role="presentation" onclick={(e) => e.stopPropagation()}>
       <div class="confirm-title">Delete this category?</div>
-      <p class="confirm-body">Any transactions using it (or its subcategories) keep showing the old name — nothing about them changes.</p>
+      <p class="confirm-body">It disappears from this list, but existing transactions keep showing it — they're never hidden or changed.</p>
       <div class="confirm-actions">
         <button class="cancel-confirm-btn" onclick={() => confirmDeleteOpen = false}>Cancel</button>
         <button class="delete-confirm-btn" onclick={confirmDelete}>Delete</button>
@@ -222,8 +248,16 @@
     color: var(--ink); opacity: .6; font-size: 14px;
   }
 
-  .subcat-list { display: flex; flex-wrap: wrap; gap: 6px; padding: 8px 4px 2px 14px; }
-  .subcat-chip {
+  .reorder-btns { display: flex; flex-direction: column; gap: 2px; }
+  .reorder-btn {
+    width: 26px; height: 19px; border-radius: 5px; background: var(--paper-dim); border: none;
+    color: var(--ink); opacity: .55; font-size: 9px; line-height: 1;
+  }
+  .reorder-btn:disabled { opacity: .2; }
+
+  .subcat-list { display: flex; flex-direction: column; gap: 6px; padding: 8px 4px 2px 14px; }
+  .subcat-row { display: flex; align-items: center; gap: 8px; }
+  .subcat-name {
     padding: 4px 10px; border-radius: 20px; background: var(--paper-line);
     font-family: var(--font-body); font-size: 12px; color: var(--ink); opacity: .8;
   }
