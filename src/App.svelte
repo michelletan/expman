@@ -1,16 +1,12 @@
 <script>
   import { onMount } from 'svelte';
-  import { ensureSeeded } from './lib/data/db.js';
+  import { openDB } from './lib/data/db.js';
   import Home from './pages/Home.svelte';
 
-  // Mirrors the original app's boot() in js/app.js: open the DB and
-  // seed it from the migrated export on first run only. Everything
-  // that reads from the DB (Home included) waits behind this so it
-  // never renders against an empty store.
   let ready = $state(false);
 
   onMount(async () => {
-    await ensureSeeded();
+    await openDB();
     ready = true;
   });
 </script>

@@ -1,13 +1,8 @@
 /*
   DATA/DB.JS
   ----------
-  The only file that talks to IndexedDB directly — ported 1:1 from the
-  original app's js/db.js, just as plain ES module exports instead of
-  window.DB. Every component reads and writes data through the
-  functions exported here; none of them should call indexedDB.*
-  themselves. That keeps storage concerns in one place if you ever
-  want to swap IndexedDB for something else, or add a sync hook (see
-  the future data/sync.js).
+  Every component reads and writes data through the functions exported here; 
+  none of them should call indexedDB.* themselves. 
 
   Object stores:
     transactions  - one row per expense/income entry
@@ -16,7 +11,7 @@
     budgets       - {id, category, monthlyLimit}  (per-category, rollover
                      is CALCULATED at read time, not stored — see
                      computeBudgetStatus below)
-    recurring     - migrated recurring rules (see public/data/seed.json)
+    recurring     - repeating transaction rules
     cards         - {id, name, last4, color, cycleStartDay}
     meta          - plain key/value settings (theme, lastSyncedAt, ...)
 */
@@ -27,12 +22,12 @@ const STORES = ['transactions', 'categories', 'accounts', 'budgets', 'recurring'
 
 let _dbPromise = null;
 
-function openDB() {
+export async function openDB() {
   if (_dbPromise) return _dbPromise;
   _dbPromise = new Promise((resolve, reject) => {
     const req = indexedDB.open(DB_NAME, DB_VERSION);
-    req.onupgradeneeded = (e) => {
-      const db = e.target.result;
+    req.onupgradeneeded = () => {
+      const db = req.result;
       for (const store of STORES) {
         if (!db.objectStoreNames.contains(store)) {
           db.createObjectStore(store, { keyPath: 'id' });
@@ -93,9 +88,6 @@ export async function clearStore(storeName) {
 }
 
 // ---- backup / restore ----------------------------------------------------
-// Same JSON shape a future data/sync.js would push to Drive — a local
-// file backup and a cloud sync are just two different transports for
-// the same snapshot.
 
 export async function exportAll() {
   const [transactions, categories, accounts, budgets, recurring, cards] = await Promise.all([
@@ -131,40 +123,9 @@ function markDirty() {
   if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('expman:dirty'));
 }
 
-// ---- first-run seeding --------------------------------------------------
-
-export async function isEmpty() {
-  const txns = await getAll('transactions');
-  return txns.length === 0;
-}
-
-export async function seedFromJSON(seed) {
-  await putMany('categories', seed.categories);
-  await putMany('accounts', seed.accounts);
-  await putMany('transactions', seed.transactions);
-  await putMany('recurring', seed.recurring);
-  await putMany('cards', seed.cards);
-  if (seed.budgets && seed.budgets.length) await putMany('budgets', seed.budgets);
-  const metaStore = await tx('meta', 'readwrite');
-  await promisify(metaStore.put({ id: 'preferences', value: seed.preferences }));
-  await promisify(metaStore.put({ id: 'seededAt', value: new Date().toISOString() }));
-}
-
-// Boots the DB and seeds it from public/data/seed.json on first run.
-// This replaces the boot() responsibility that used to live in
-// app.js — call it once, at the app root, before rendering anything
-// that reads from the DB.
-export async function ensureSeeded() {
-  await openDB();
-  if (await isEmpty()) {
-    const res = await fetch(import.meta.env.BASE_URL + 'data/seed.json');
-    const seed = await res.json();
-    await seedFromJSON(seed);
-  }
-}
-
 // ---- meta (settings) helpers --------------------------------------------
 
+/** @param {*} [fallback] */
 export async function getMeta(key, fallback = null) {
   const row = await get('meta', key);
   return row ? row.value : fallback;
