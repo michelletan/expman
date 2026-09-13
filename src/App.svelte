@@ -1,11 +1,12 @@
 <script>
   import { onMount } from 'svelte';
-  import { openDB, ensureDefaultAccount, ensureDefaultCategories } from './lib/data/db.js';
+  import { openDB, ensureDefaultAccount, ensureDefaultCategories, getAccounts } from './lib/data/db.js';
   import Home from './pages/Home.svelte';
   import Settings from './pages/Settings.svelte';
   import Accounts from './pages/Accounts.svelte';
   import AddAccount from './pages/AddAccount.svelte';
   import Categories from './pages/Categories.svelte';
+  import AddTransaction from './pages/AddTransaction.svelte';
   import Placeholder from './pages/Placeholder.svelte';
   import TabBar from './lib/components/TabBar.svelte';
 
@@ -17,24 +18,64 @@
   let screen = $state('Home');
   let editingAccountId = $state(null);
 
+  // Add Transaction is reached from Home (and later Activity) rather
+  // than Settings, so back/save return to whichever tab opened it
+  // instead of always going to Settings (specs/transactions.md
+  // requirements 8-9, 16).
+  let editingTransactionId = $state(null);
+  let newTransactionType = $state('expense');
+  let addTransactionReturnTo = $state('Home');
+
+  // The selected account lives here, not in Home, so Home and Activity
+  // (specs/transactions.md requirement 5) always agree on which account
+  // they're showing.
+  let accounts = $state([]);
+  let accountId = $state(null);
+
   const TAB_FOR_SCREEN = {
     Home: 'Home', Activity: 'Activity', Reports: 'Reports',
     Settings: 'Settings', Accounts: 'Settings', AddAccount: 'Settings', Categories: 'Settings'
   };
 
+  async function refreshAccounts() {
+    accounts = await getAccounts();
+    if (!accounts.some(a => a.id === accountId)) accountId = accounts[0]?.id ?? null;
+  }
+
   onMount(async () => {
     await openDB();
     await ensureDefaultAccount();
     await ensureDefaultCategories();
+    await refreshAccounts();
     ready = true;
+  });
+
+  // Re-fetch whenever Home or Activity comes into view, so adding/
+  // editing/deleting an account elsewhere (Settings > Accounts) shows up
+  // immediately instead of going stale — App.svelte doesn't remount the
+  // way a per-screen component would on its own onMount.
+  $effect(() => {
+    if (ready && (screen === 'Home' || screen === 'Activity')) refreshAccounts();
   });
 
   function backToSettings() {
     screen = 'Settings';
   }
-  function openAddAccount(accountId) {
-    editingAccountId = accountId;
+  function openAddAccount(id) {
+    editingAccountId = id;
     screen = 'AddAccount';
+  }
+
+  function openAddTransaction(type) {
+    editingTransactionId = null;
+    newTransactionType = type;
+    addTransactionReturnTo = screen;
+    screen = 'AddTransaction';
+  }
+  function openEditTransaction(id) {
+    editingTransactionId = id;
+    addTransactionReturnTo = screen;
+    screen = 'AddTransaction';
   }
 </script>
 
@@ -44,7 +85,20 @@
   {:else}
     <div class="screen-area">
       {#if screen === 'Home'}
-        <Home />
+        <Home
+          {accounts} {accountId} onSelectAccount={(id) => accountId = id}
+          onAddExpense={() => openAddTransaction('expense')}
+          onAddIncome={() => openAddTransaction('income')}
+          onOpenTransaction={openEditTransaction}
+        />
+      {:else if screen === 'AddTransaction'}
+        <AddTransaction
+          transactionId={editingTransactionId}
+          initialType={newTransactionType}
+          defaultAccountId={accountId}
+          onBack={() => screen = addTransactionReturnTo}
+          onSaved={() => screen = addTransactionReturnTo}
+        />
       {:else if screen === 'Activity' || screen === 'Reports'}
         <Placeholder title={screen} />
       {:else if screen === 'Settings'}
@@ -61,7 +115,10 @@
         <Categories onBack={backToSettings} />
       {/if}
     </div>
-    <TabBar current={TAB_FOR_SCREEN[screen]} onSelect={(tab) => screen = tab} />
+    <TabBar
+      current={screen === 'AddTransaction' ? TAB_FOR_SCREEN[addTransactionReturnTo] : TAB_FOR_SCREEN[screen]}
+      onSelect={(tab) => screen = tab}
+    />
   {/if}
 </div>
 

@@ -3,9 +3,12 @@
 
   // In Svelte 5, a component's inputs are declared with $props() —
   // this replaces `export let transaction` from Svelte 4.
+  // categoryLabel/paymentLabel are resolved by the caller (see
+  // resolveTransactionLabels in transactions.js) — this component just
+  // lays them out, it never looks anything up itself.
   let { transaction, onOpen = () => {} } = $props();
 
-  const initial = $derived((transaction.category || '?').charAt(0).toUpperCase());
+  const initial = $derived((transaction.categoryLabel || '?').charAt(0).toUpperCase());
   const color = $derived(transaction.type === 'income' ? 'var(--green)' : 'var(--rust)');
 </script>
 
@@ -18,8 +21,10 @@
 <button class="tx-row" onclick={() => onOpen(transaction.id)}>
   <div class="tx-icon" style:background={color}>{initial}</div>
   <div class="tx-mid">
-    <div class="tx-title">{transaction.note || transaction.subcategory || transaction.category}</div>
-    <div class="tx-sub">{fmtDateShort(transaction.date)} · {transaction.category} · {transaction.paymentMethod || ''}</div>
+    <div class="tx-title">{transaction.description || transaction.categoryLabel}</div>
+    <div class="tx-sub">
+      {fmtDateShort(transaction.date)} · {transaction.categoryLabel}{#if transaction.type === 'expense'} · {transaction.paymentLabel}{/if}
+    </div>
   </div>
   <div class="tx-amt" class:pos={transaction.type === 'income'} class:neg={transaction.type !== 'income'}>
     {fmtMoneySigned(transaction.amount, transaction.type)}

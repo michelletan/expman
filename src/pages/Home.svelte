@@ -1,16 +1,15 @@
 <script>
-  import { onMount } from 'svelte';
-  import { getAccounts } from '../lib/data/db.js';
   import { getRecentTransactions, getHomeSummary, getBudgetStatuses } from '../lib/data/transactions.js';
   import { fmtMoneySigned, fmtMonthLabel, currentYearMonth } from '../lib/data/format.js';
   import TransactionRow from '../lib/components/TransactionRow.svelte';
   import BudgetCard from '../lib/components/BudgetCard.svelte';
   import AccountSwitcher from '../lib/components/AccountSwitcher.svelte';
 
-  // $state is Svelte 5's reactivity primitive — reassigning these
-  // variables anywhere automatically re-renders whatever reads them.
-  let accounts = $state([]);
-  let accountId = $state(null);
+  // accounts/accountId live in App.svelte now, shared with Activity
+  // (specs/transactions.md requirement 5) — this component just renders
+  // them and reports selections back up via onSelectAccount.
+  let { accounts, accountId, onSelectAccount, onAddExpense, onAddIncome, onOpenTransaction } = $props();
+
   let switcherOpen = $state(false);
   let recent = $state([]);
   let monthExpense = $state(0);
@@ -19,16 +18,11 @@
 
   const currentAccountName = $derived(accounts.find(a => a.id === accountId)?.name ?? '');
 
-  onMount(async () => {
-    accounts = await getAccounts();
-    accountId = accounts[0]?.id ?? null;
-  });
-
   // $effect re-runs whenever a value it read synchronously (accountId)
   // changes — this is what makes switching accounts actually refetch and
-  // re-render, unlike the prototype's one-shot onMount. Data-layer
-  // queries key off the account's id (see specs/accounts.md) and resolve
-  // its current name live wherever one needs to be displayed.
+  // re-render. Data-layer queries key off the account's id (see
+  // specs/accounts.md) and resolve its current name live wherever one
+  // needs to be displayed.
   $effect(() => {
     if (accountId != null) loadData(accountId);
   });
@@ -37,16 +31,13 @@
     const [summary, budgetStatuses, recentTxns] = await Promise.all([
       getHomeSummary(id),
       getBudgetStatuses(3),
-      getRecentTransactions(6, id)
+      getRecentTransactions(5, id)
     ]);
     monthExpense = summary.monthSummary.expense;
     budgets = budgetStatuses;
     recent = recentTxns;
   }
 
-  function openTransaction(id) {
-    alert('Would open transaction ' + id + ' for editing.');
-  }
   function openBudget(category) {
     alert('Would open ' + category + ' budget detail.');
   }
@@ -66,7 +57,7 @@
   <AccountSwitcher
     {accounts}
     current={accountId}
-    onSelect={(id) => { accountId = id; switcherOpen = false; }}
+    onSelect={(id) => { onSelectAccount(id); switcherOpen = false; }}
     onClose={() => switcherOpen = false}
   />
 {/if}
@@ -76,7 +67,7 @@
     <div class="label">Spent this month · {monthLabel}</div>
     <div class="amount">{fmtMoneySigned(monthExpense, 'expense')}</div>
     <div class="income-btn-row">
-      <button class="ghost-btn">+ Add Income</button>
+      <button class="ghost-btn" onclick={onAddIncome}>+ Add Income</button>
       <button class="ghost-btn neutral">🔁 Recurring</button>
       <button class="ghost-btn neutral">💰 Budgets</button>
     </div>
@@ -94,11 +85,15 @@
   <div class="section-label">Recent activity</div>
   <div class="tx-list">
     {#each recent as transaction (transaction.id)}
-      <TransactionRow {transaction} onOpen={openTransaction} />
+      <TransactionRow {transaction} onOpen={onOpenTransaction} />
     {:else}
       <div class="empty-state">No transactions yet.</div>
     {/each}
   </div>
+</div>
+
+<div class="fab-wrap">
+  <button class="fab" onclick={onAddExpense} aria-label="Add expense">+</button>
 </div>
 
 <style>
@@ -140,4 +135,15 @@
   .budget-row { padding: 0 20px; display: flex; flex-direction: column; gap: 10px; }
   .tx-list { padding: 0 20px; }
   .empty-state { padding: 40px 24px; text-align: center; color: var(--ink); opacity: .5; font-size: 14px; }
+
+  .fab-wrap {
+    position: fixed; left: 0; right: 0; bottom: calc(66px + env(safe-area-inset-bottom) + 16px);
+    max-width: 480px; margin: 0 auto; pointer-events: none;
+  }
+  .fab {
+    position: absolute; right: 20px; bottom: 0; pointer-events: auto;
+    width: 52px; height: 52px; border-radius: 50%; border: none;
+    background: var(--accent); color: var(--accent-ink);
+    font-size: 26px; line-height: 1; box-shadow: 0 4px 14px rgba(0,0,0,.25);
+  }
 </style>

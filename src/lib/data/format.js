@@ -39,6 +39,14 @@ export function currentYearMonth() {
   return todayISO().slice(0, 7);
 }
 
+// "2026-09" + 1 -> "2026-10"; + -1 -> "2026-08". Powers Activity's month
+// picker (specs/transactions.md requirement 24) — no upper/lower bound.
+export function shiftYearMonth(yearMonth, delta) {
+  const [y, m] = yearMonth.split('-').map(Number);
+  const d = new Date(y, m - 1 + delta, 1);
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+}
+
 export function genId(prefix) {
   return prefix + '_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 }

@@ -210,6 +210,45 @@ export async function setMeta(key, value) {
   return put('meta', { id: key, value });
 }
 
+// ---- transactions -----------------------------------------------------
+// Referenced by nothing else (no other store points at a transaction by
+// id), so delete is a plain hard delete — no soft-delete/id-resolution
+// concern the way accounts/categories have. See specs/transactions.md.
+
+export async function getTransaction(id) {
+  return get('transactions', id);
+}
+
+/**
+ * @param {{ accountId: string, amount: number, type: string, description?: string,
+ *   categoryId?: string|null, subcategoryId?: string|null, paymentMethod?: string|null, date?: string }} fields
+ */
+export async function createTransaction({
+  accountId, amount, type, description = '', categoryId = null, subcategoryId = null,
+  paymentMethod = null, date = todayISO()
+}) {
+  const now = new Date().toISOString();
+  const transaction = {
+    id: genId('txn'),
+    accountId, amount: Number(amount) || 0, type, description,
+    categoryId, subcategoryId: categoryId ? subcategoryId : null,
+    paymentMethod: type === 'expense' ? (paymentMethod || 'cash') : null,
+    date,
+    createdAt: now, modifiedAt: now
+  };
+  await put('transactions', transaction);
+  return transaction;
+}
+
+export async function updateTransaction(id, fields) {
+  const existing = await get('transactions', id);
+  return put('transactions', { ...existing, ...fields, modifiedAt: new Date().toISOString() });
+}
+
+export async function removeTransaction(id) {
+  return remove('transactions', id);
+}
+
 // ---- domain-specific queries --------------------------------------------
 // Small helpers that combine raw store reads into the shapes components
 // need. Keeping these here (rather than duplicated per-component) means
@@ -222,6 +261,28 @@ export function monthKey(dateStr) {
 export async function getTransactionsForMonth(yearMonth, accountId) {
   const all = await getVisibleTransactions();
   return all.filter(t => monthKey(t.date) === yearMonth && (!accountId || t.accountId === accountId));
+}
+
+// Category view's data source (specs/transactions.md requirement 28):
+// one row per category with a transaction that month, summed and sorted
+// largest first, plus an "Uncategorised" row when relevant.
+export async function getCategoryTotalsForMonth(yearMonth, accountId) {
+  const [txns, categories] = await Promise.all([getTransactionsForMonth(yearMonth, accountId), getAll('categories')]);
+  const categoryById = new Map(categories.map(c => [c.id, c]));
+
+  const totals = new Map(); // categoryId (or null) -> total
+  for (const t of txns) {
+    const key = t.categoryId ?? null;
+    totals.set(key, (totals.get(key) || 0) + t.amount);
+  }
+
+  return Array.from(totals.entries())
+    .map(([categoryId, total]) => ({
+      categoryId,
+      category: categoryId ? (categoryById.get(categoryId)?.name ?? 'Uncategorised') : 'Uncategorised',
+      total
+    }))
+    .sort((a, b) => b.total - a.total);
 }
 
 export async function getMonthSummary(yearMonth, accountId) {
