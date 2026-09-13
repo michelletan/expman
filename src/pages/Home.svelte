@@ -1,33 +1,41 @@
 <script>
+  import { onMount } from 'svelte';
+  import { getAccounts } from '../lib/data/db.js';
   import { getRecentTransactions, getHomeSummary, getBudgetStatuses } from '../lib/data/transactions.js';
   import { fmtMoneySigned, fmtMonthLabel, currentYearMonth } from '../lib/data/format.js';
   import TransactionRow from '../lib/components/TransactionRow.svelte';
   import BudgetCard from '../lib/components/BudgetCard.svelte';
-  import AccountTabs from '../lib/components/AccountTabs.svelte';
-  import TabBar from '../lib/components/TabBar.svelte';
+  import AccountSwitcher from '../lib/components/AccountSwitcher.svelte';
 
   // $state is Svelte 5's reactivity primitive — reassigning these
   // variables anywhere automatically re-renders whatever reads them.
-  let account = $state('Personal Expense');
+  let accounts = $state([]);
+  let accountId = $state(null);
+  let switcherOpen = $state(false);
   let recent = $state([]);
   let monthExpense = $state(0);
   let budgets = $state([]);
   const monthLabel = fmtMonthLabel(currentYearMonth());
 
-  // $effect re-runs whenever a value it read synchronously (account)
-  // changes — this is what makes tapping a different account tab
-  // actually refetch and re-render, unlike the prototype's one-shot
-  // onMount. Real port of the account-filter fix from js/app.js.
-  $effect(() => {
-    const acct = account === 'All' ? undefined : account;
-    loadData(acct);
+  const currentAccountName = $derived(accounts.find(a => a.id === accountId)?.name ?? '');
+
+  onMount(async () => {
+    accounts = await getAccounts();
+    accountId = accounts[0]?.id ?? null;
   });
 
-  async function loadData(acct) {
+  // $effect re-runs whenever a value it read synchronously (accountId)
+  // changes — this is what makes switching accounts actually refetch
+  // and re-render, unlike the prototype's one-shot onMount.
+  $effect(() => {
+    if (accountId != null) loadData(accountId);
+  });
+
+  async function loadData(id) {
     const [summary, budgetStatuses, recentTxns] = await Promise.all([
-      getHomeSummary(acct),
+      getHomeSummary(id),
       getBudgetStatuses(3),
-      getRecentTransactions(6, acct)
+      getRecentTransactions(6, id)
     ]);
     monthExpense = summary.monthSummary.expense;
     budgets = budgetStatuses;
@@ -40,19 +48,26 @@
   function openBudget(category) {
     alert('Would open ' + category + ' budget detail.');
   }
-  function selectTab(tab) {
-    if (tab !== 'Home') alert('Would open ' + tab + ' screen.');
-  }
 </script>
 
 <div class="topbar">
   <div class="eyebrow">Good to see you</div>
-  <AccountTabs
-    accounts={['Personal Expense', 'Loans', 'All']}
-    current={account}
-    onSelect={(a) => account = a}
-  />
+  <div class="account-row">
+    <span class="account-name">{currentAccountName}</span>
+    {#if accounts.length > 1}
+      <button class="switch-btn" onclick={() => switcherOpen = true}>Switch</button>
+    {/if}
+  </div>
 </div>
+
+{#if switcherOpen}
+  <AccountSwitcher
+    {accounts}
+    current={accountId}
+    onSelect={(id) => { accountId = id; switcherOpen = false; }}
+    onClose={() => switcherOpen = false}
+  />
+{/if}
 
 <div class="content">
   <div class="balance-hero">
@@ -84,8 +99,6 @@
   </div>
 </div>
 
-<TabBar current="Home" onSelect={selectTab} />
-
 <style>
   /* Page-level layout only — everything reusable already moved out
      into lib/components. This file is now ~90 lines of markup+logic
@@ -96,6 +109,14 @@
     padding: max(env(safe-area-inset-top), 16px) 20px 16px;
   }
   .eyebrow { font-size: 12.5px; color: #9BA3BC; font-weight: 500; }
+  .account-row { display: flex; align-items: center; gap: 10px; margin-top: 6px; }
+  .account-name {
+    font-family: var(--font-display); font-weight: 600; font-size: 20px; color: var(--paper);
+  }
+  .switch-btn {
+    padding: 5px 12px; border-radius: 20px; font-size: 12.5px; font-weight: 700;
+    background: rgba(255,255,255,.08); color: #C7CCDC; border: none; font-family: var(--font-body);
+  }
 
   .content { background: var(--paper); min-height: 100vh; padding-bottom: 90px; }
 

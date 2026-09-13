@@ -1,6 +1,6 @@
 ## Accounts
 
-**Status:** Drafting — one open question left (see below)
+**Status:** Approved
 
 ### Summary
 Full account management (create, list, edit, soft-delete), a default
@@ -135,10 +135,7 @@ you set an existing account's balance, never create/edit/delete one (see
   Cards.
 
 ### Open questions
-- **"All" combined view**: Home currently has an "All" pseudo-account tab
-  that combines every account's numbers. The PRD's single-account +
-  switcher-modal design has no obvious place for it. Assuming it's
-  **dropped** unless you say otherwise — confirm?
+None — "All" is dropped, confirmed.
 
 ### Acceptance criteria
 - [ ] First launch with zero accounts silently creates "Personal Expense"

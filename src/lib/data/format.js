@@ -38,3 +38,7 @@ export function todayISO() {
 export function currentYearMonth() {
   return todayISO().slice(0, 7);
 }
+
+export function genId(prefix) {
+  return prefix + '_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+}

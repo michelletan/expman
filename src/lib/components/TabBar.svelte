@@ -4,9 +4,8 @@
   const tabs = [
     { label: 'Home', icon: 'M3 11l9-7 9 7v9a1 1 0 01-1 1h-5v-6H9v6H4a1 1 0 01-1-1z' },
     { label: 'Activity', icon: 'M4 6h16M4 12h16M4 18h9' },
-    { label: 'Calendar', icon: 'M3 10h18M8 2v4M16 2v4', rect: true },
     { label: 'Reports', icon: 'M4 19V9M12 19V4M20 19v-7' },
-    { label: 'More', icon: 'M12 8v4l3 2', circle: true }
+    { label: 'Settings', icon: 'M12 8v4l3 2', circle: true }
   ];
 </script>
 

@@ -5,16 +5,23 @@
   none of them should call indexedDB.* themselves. 
 
   Object stores:
-    transactions  - one row per expense/income entry
+    transactions  - one row per expense/income entry, linked to an
+                    account via accountId (not account name)
     categories    - {id, name, type, subcategories: [string]}
-    accounts      - {id, name, currency, initialBalance, type}
+    accounts      - {id, name, description, initialBalance, dateCreated,
+                     isDeleted}  (soft-deleted accounts and their
+                     transactions are hidden from every in-app view but
+                     kept for exportAll() — see getVisibleTransactions)
     budgets       - {id, category, monthlyLimit}  (per-category, rollover
                      is CALCULATED at read time, not stored — see
                      computeBudgetStatus below)
-    recurring     - repeating transaction rules
+    recurring     - repeating transaction rules, linked to an account via
+                    accountId
     cards         - {id, name, last4, color, cycleStartDay}
     meta          - plain key/value settings (theme, lastSyncedAt, ...)
 */
+
+import { genId, todayISO } from './format.js';
 
 const DB_NAME = 'expman-db';
 const DB_VERSION = 1;
@@ -87,6 +94,60 @@ export async function clearStore(storeName) {
   await promisify(store.clear());
 }
 
+// ---- accounts -------------------------------------------------------------
+// Soft-delete only: deleting an account sets isDeleted instead of removing
+// the row, so its transaction history survives in the DB (and in
+// exportAll()) even though it disappears from every in-app view.
+
+export async function getAccounts() {
+  const all = await getAll('accounts');
+  return all.filter(a => !a.isDeleted);
+}
+
+export async function getAccount(id) {
+  return get('accounts', id);
+}
+
+export async function createAccount({ name, description = '', initialBalance = 0 }) {
+  const account = {
+    id: genId('acct'),
+    name,
+    description: description || '',
+    initialBalance: Number(initialBalance) || 0,
+    dateCreated: todayISO(),
+    isDeleted: false
+  };
+  await put('accounts', account);
+  return account;
+}
+
+export async function updateAccount(id, fields) {
+  const existing = await get('accounts', id);
+  return put('accounts', { ...existing, ...fields });
+}
+
+export async function softDeleteAccount(id) {
+  return updateAccount(id, { isDeleted: true });
+}
+
+// Called once at boot. Only creates the default account the very first
+// time the app runs — checks the whole store (deleted rows included) so
+// someone who deletes every account doesn't get one silently recreated.
+export async function ensureDefaultAccount() {
+  const all = await getAll('accounts');
+  if (all.length === 0) await createAccount({ name: 'Personal Expense' });
+}
+
+// Transactions belonging to a soft-deleted account are excluded from
+// every read used by an in-app view (balances, activity, reports, budget
+// spend, ...). exportAll() deliberately calls getAll('transactions')
+// directly instead, so a full backup still contains everything.
+export async function getVisibleTransactions() {
+  const [txns, accounts] = await Promise.all([getAll('transactions'), getAll('accounts')]);
+  const deletedIds = new Set(accounts.filter(a => a.isDeleted).map(a => a.id));
+  return txns.filter(t => !deletedIds.has(t.accountId));
+}
+
 // ---- backup / restore ----------------------------------------------------
 
 export async function exportAll() {
@@ -144,13 +205,13 @@ export function monthKey(dateStr) {
   return dateStr ? dateStr.slice(0, 7) : null; // "2026-09-01" -> "2026-09"
 }
 
-export async function getTransactionsForMonth(yearMonth, accountName) {
-  const all = await getAll('transactions');
-  return all.filter(t => monthKey(t.date) === yearMonth && (!accountName || t.account === accountName));
+export async function getTransactionsForMonth(yearMonth, accountId) {
+  const all = await getVisibleTransactions();
+  return all.filter(t => monthKey(t.date) === yearMonth && (!accountId || t.accountId === accountId));
 }
 
-export async function getMonthSummary(yearMonth, accountName) {
-  const txns = await getTransactionsForMonth(yearMonth, accountName);
+export async function getMonthSummary(yearMonth, accountId) {
+  const txns = await getTransactionsForMonth(yearMonth, accountId);
   let expense = 0, income = 0;
   for (const t of txns) {
     if (t.type === 'income') income += t.amount;
@@ -159,32 +220,26 @@ export async function getMonthSummary(yearMonth, accountName) {
   return { expense, income, count: txns.length };
 }
 
-// Balance is anchored at the migration date, not reconstructed from
-// years of category transactions. Why: this app (like the one it
-// replaces) tracks spending by category accurately, but doesn't fully
-// double-entry every transfer/income — so summing years of expense-only
-// history against a $0 starting point drifts wildly negative. Set each
-// account's real current balance in Accounts once (defaults to 0 until
-// you do), and only transactions dated AFTER the migration affect it
-// from then on.
-export async function getCurrentBalance(accountName) {
-  const [accounts, txns, anchor] = await Promise.all([
-    getAll('accounts'), getAll('transactions'), getMeta('balanceAnchorDate', null)
-  ]);
-  const relevantAccounts = accountName ? accounts.filter(a => a.name === accountName) : accounts;
+// Naive running total: initialBalance + every one of the account's
+// transactions ever. This deliberately replaces the previous
+// anchor-date-based calculation (per accounts spec decision) — simpler,
+// revisit if it causes problems once there's real transaction history.
+export async function getCurrentBalance(accountId) {
+  const [accounts, txns] = await Promise.all([getAll('accounts'), getVisibleTransactions()]);
+  const relevantAccounts = accountId ? accounts.filter(a => a.id === accountId) : accounts.filter(a => !a.isDeleted);
   const base = relevantAccounts.reduce((sum, a) => sum + (a.initialBalance || 0), 0);
-  const byAccount = accountName ? txns.filter(t => t.account === accountName) : txns;
-  const relevant = anchor ? byAccount.filter(t => t.date && t.date > anchor) : byAccount;
+  const relevantIds = new Set(relevantAccounts.map(a => a.id));
+  const relevant = txns.filter(t => relevantIds.has(t.accountId));
   const net = relevant.reduce((sum, t) => sum + (t.type === 'income' ? t.amount : -t.amount), 0);
   return base + net;
 }
 
-export async function getYearToDate(year, accountName) {
-  const all = await getAll('transactions');
+export async function getYearToDate(year, accountId) {
+  const all = await getVisibleTransactions();
   let expense = 0, income = 0;
   for (const t of all) {
     if (!t.date || !t.date.startsWith(String(year))) continue;
-    if (accountName && t.account !== accountName) continue;
+    if (accountId && t.accountId !== accountId) continue;
     if (t.type === 'income') income += t.amount; else expense += t.amount;
   }
   return { expense, income };
@@ -193,7 +248,7 @@ export async function getYearToDate(year, accountName) {
 // Most-used subcategories overall — powers the "top 3" quick-pick chips
 // on the Add Expense screen.
 export async function getTopSubcategories(limit = 3) {
-  const all = await getAll('transactions');
+  const all = await getVisibleTransactions();
   const counts = {};
   for (const t of all) {
     if (t.type !== 'expense' || !t.subcategory) continue;
@@ -221,7 +276,7 @@ export async function getTopSubcategories(limit = 3) {
 // time (real async round-trips, not free) made the UI visibly lag;
 // filtering an already-fetched array is effectively instant.
 export async function computeBudgetStatus(category, yearMonth) {
-  const [budgets, allTxns] = await Promise.all([getAll('budgets'), getAll('transactions')]);
+  const [budgets, allTxns] = await Promise.all([getAll('budgets'), getVisibleTransactions()]);
   const budget = budgets.find(b => b.category === category);
   if (!budget) return null;
 
