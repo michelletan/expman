@@ -1,7 +1,7 @@
 <script>
   import { getTransactionsForMonth, getAll, groupTransactionsByCategory } from '../lib/data/db.js';
   import { resolveTransactionLabels } from '../lib/data/transactions.js';
-  import { fmtMoney, fmtMonthLabel, shiftYearMonth, currentYearMonth } from '../lib/data/format.js';
+  import { fmtMoney, fmtMonthLabel, shiftYearMonth, currentYearMonth, MONTH_SHORT } from '../lib/data/format.js';
   import TransactionRow from '../lib/components/TransactionRow.svelte';
 
   // Scoped to the app-wide selected account (specs/transactions.md
@@ -11,6 +11,22 @@
   let yearMonth = $state(currentYearMonth());
   let view = $state('date'); // 'date' | 'category'
   let search = $state('');
+
+  // Tapping the month label opens a jump-to-month/year picker
+  // (specs/transactions.md requirement 24) — separate from the ‹ › step
+  // buttons either side of it.
+  let monthPickerOpen = $state(false);
+  let pickerYear = $state(0);
+
+  function openMonthPicker() {
+    pickerYear = Number(yearMonth.slice(0, 4));
+    monthPickerOpen = true;
+  }
+
+  function pickMonth(monthIndex1) {
+    yearMonth = `${pickerYear}-${String(monthIndex1).padStart(2, '0')}`;
+    monthPickerOpen = false;
+  }
 
   // Set only by drilling in from a Category view row (requirement 29) —
   // switching the view toggle directly always clears this.
@@ -78,7 +94,7 @@
     <div class="title">Activity</div>
     <div class="month-nav">
       <button onclick={() => yearMonth = shiftYearMonth(yearMonth, -1)} aria-label="Previous month">‹</button>
-      <span>{fmtMonthLabel(yearMonth)}</span>
+      <button class="month-label" onclick={openMonthPicker}>{fmtMonthLabel(yearMonth)}</button>
       <button onclick={() => yearMonth = shiftYearMonth(yearMonth, 1)} aria-label="Next month">›</button>
     </div>
   </div>
@@ -118,6 +134,27 @@
   </div>
 </div>
 
+{#if monthPickerOpen}
+  <div class="backdrop" role="button" tabindex="0" onclick={() => monthPickerOpen = false} onkeydown={(e) => e.key === 'Escape' && (monthPickerOpen = false)}>
+    <div class="picker-sheet" role="presentation" onclick={(e) => e.stopPropagation()}>
+      <div class="picker-year-nav">
+        <button onclick={() => pickerYear -= 1} aria-label="Previous year">‹</button>
+        <span>{pickerYear}</span>
+        <button onclick={() => pickerYear += 1} aria-label="Next year">›</button>
+      </div>
+      <div class="picker-month-grid">
+        {#each MONTH_SHORT as label, i (label)}
+          <button
+            class="picker-month-btn"
+            class:selected={yearMonth === `${pickerYear}-${String(i + 1).padStart(2, '0')}`}
+            onclick={() => pickMonth(i + 1)}
+          >{label}</button>
+        {/each}
+      </div>
+    </div>
+  </div>
+{/if}
+
 <style>
   .topbar {
     background: var(--ink); color: var(--paper);
@@ -125,10 +162,11 @@
   }
   .title { font-size: 18px; font-weight: 700; font-family: var(--font-display); }
   .month-nav {
-    display: flex; align-items: center; gap: 12px; margin-top: 8px;
+    display: flex; align-items: center; justify-content: center; gap: 12px; margin-top: 8px;
     font-family: var(--font-body); font-size: 14px; font-weight: 600;
   }
   .month-nav button { background: none; border: none; color: var(--paper); font-size: 16px; padding: 2px 6px; }
+  .month-label { font-family: var(--font-body); font-size: 14px; font-weight: 600; min-width: 120px; text-align: center; }
 
   .content { background: var(--paper); min-height: 100vh; padding: 16px 20px calc(66px + env(safe-area-inset-bottom) + 16px); }
 
@@ -163,4 +201,21 @@
   }
   .cat-name { font-size: 14.5px; font-weight: 600; color: var(--ink); }
   .cat-amount { font-size: 14.5px; font-weight: 700; color: var(--ink); font-variant-numeric: tabular-nums; }
+
+  .backdrop {
+    position: fixed; inset: 0; background: rgba(0,0,0,.4);
+    display: flex; align-items: center; justify-content: center; z-index: 50; padding: 24px;
+  }
+  .picker-sheet { width: 100%; max-width: 340px; background: var(--paper); border-radius: 16px; padding: 20px; }
+  .picker-year-nav {
+    display: flex; align-items: center; justify-content: center; gap: 20px; margin-bottom: 16px;
+    font-family: var(--font-display); font-size: 16px; font-weight: 700; color: var(--ink);
+  }
+  .picker-year-nav button { background: none; border: none; color: var(--ink); font-size: 18px; padding: 2px 8px; }
+  .picker-month-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .picker-month-btn {
+    padding: 12px 0; border-radius: 10px; border: none; background: var(--paper-dim);
+    font-family: var(--font-body); font-size: 13.5px; font-weight: 600; color: var(--ink);
+  }
+  .picker-month-btn.selected { background: var(--accent); color: var(--accent-ink); font-weight: 700; }
 </style>

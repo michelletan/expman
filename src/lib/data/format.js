@@ -13,14 +13,15 @@ export function fmtMoneySigned(amount, type) {
 }
 
 const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December'];
-const MONTH_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+export const MONTH_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
 // A category's color is picked from this fixed palette, not a free-form
 // picker (specs/categories.md requirement 10g) — chosen for mutual
 // distinctness and enough contrast for white text/icons on top.
 export const CATEGORY_COLORS = [
   '#E07A5F', '#3D9970', '#4C6EF5', '#F4A261', '#9C6ADE',
-  '#2A9D8F', '#E63946', '#457B9D', '#D68C45', '#6B7280'
+  '#2A9D8F', '#E63946', '#457B9D', '#D68C45', '#6B7280',
+  '#D6558C', '#A3C935', '#6A4C93', '#22B8CF', '#8D6748'
 ];
 
 export function fmtDateShort(dateStr) {

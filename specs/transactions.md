@@ -107,8 +107,11 @@ id, resolved live, matching the project-wide decision in
 22. Activity SHALL replace the current `Placeholder` for that tab, and
     SHALL be scoped to the app-wide selected account (requirement 5).
 23. Default view: the current month.
-24. A month picker (`‹ Sep 2026 ›`) SHALL let the user page to any other
-    month, with no upper/lower bound.
+24. A month picker (`‹ Sep 2026 ›`), centered at the top of the screen,
+    SHALL let the user page to any other month, with no upper/lower
+    bound. Tapping the month/year label itself (rather than the ‹ ›
+    arrows) SHALL open a jump-to picker: a year stepper plus a 12-month
+    grid, so paging isn't the only way to reach a distant month.
 25. A search bar SHALL filter the visible month's transactions by
     `description` text (scoped to description only, not
     category/subcategory — see Notes).
@@ -146,9 +149,12 @@ id, resolved live, matching the project-wide decision in
   `accountId`/switcher state per requirement 5; routes Activity to the
   real page; routes Add Transaction from Home's FAB/Add Income/
   recent-activity tap and from Activity's row tap).
-- [format.js](../src/lib/data/format.js): needs `shiftYearMonth(yearMonth,
-  delta)` for the Activity month picker (listed as not-yet-ported in
-  TODO.md).
+- [format.js](../src/lib/data/format.js): `shiftYearMonth(yearMonth,
+  delta)` for the ‹ › step buttons (listed as not-yet-ported in TODO.md),
+  and the exported `MONTH_SHORT` array (already used internally for
+  `fmtDateShort`) reused for the jump-to picker's month grid labels — no
+  new picker component; it's built inline in Activity.svelte since
+  nothing else needs month-jumping yet.
 - [db.js](../src/lib/data/db.js): `createTransaction`, `updateTransaction`,
   `removeTransaction` (hard delete), `getTransaction(id)`, and a
   category-totals helper for Category view (group a month's visible
@@ -196,8 +202,9 @@ id, resolved live, matching the project-wide decision in
 - [ ] Payment Picker shows Cash plus active cards (or just Cash, if Cards
       isn't implemented yet) with no error either way.
 - [ ] Activity defaults to the current month in Date view, newest first;
-      the month picker pages with no bound; search filters by
-      description.
+      the month picker (centered) pages with no bound; tapping the
+      month/year label jumps straight to any month via the year+grid
+      picker; search filters by description.
 - [ ] Category view shows one row per category present that month
       (including Uncategorised when relevant), sorted by total
       descending; tapping one switches to Date view filtered to that
