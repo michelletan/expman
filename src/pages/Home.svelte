@@ -22,17 +22,23 @@
   // changes — this is what makes switching accounts actually refetch and
   // re-render. Data-layer queries key off the account's id (see
   // specs/accounts.md) and resolve its current name live wherever one
-  // needs to be displayed.
+  // needs to be displayed. The guard discards a slower, older load() if
+  // the account is switched again before it finishes, so a stale result
+  // can't land after a fresher one (same fix as Activity.svelte).
   $effect(() => {
-    if (accountId != null) loadData(accountId);
+    if (accountId == null) return;
+    const guard = { cancelled: false };
+    loadData(accountId, guard);
+    return () => { guard.cancelled = true; };
   });
 
-  async function loadData(id) {
+  async function loadData(id, guard) {
     const [summary, budgetStatuses, recentTxns] = await Promise.all([
       getHomeSummary(id),
       getBudgetStatuses(3),
       getRecentTransactions(5, id)
     ]);
+    if (guard.cancelled) return;
     monthExpense = summary.monthSummary.expense;
     budgets = budgetStatuses;
     recent = recentTxns;

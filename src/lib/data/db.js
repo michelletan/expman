@@ -264,10 +264,13 @@ export async function getTransactionsForMonth(yearMonth, accountId) {
 }
 
 // Category view's data source (specs/transactions.md requirement 28):
-// one row per category with a transaction that month, summed and sorted
-// largest first, plus an "Uncategorised" row when relevant.
-export async function getCategoryTotalsForMonth(yearMonth, accountId) {
-  const [txns, categories] = await Promise.all([getTransactionsForMonth(yearMonth, accountId), getAll('categories')]);
+// one row per category with a transaction in the given list, summed and
+// sorted largest first, plus an "Uncategorised" row when relevant.
+// Exported (not just used internally) so Activity.svelte can reuse the
+// exact same grouping over its own search-filtered transaction list,
+// instead of re-implementing it — see getCategoryTotalsForMonth below
+// for the plain, unfiltered case.
+export function groupTransactionsByCategory(txns, categories) {
   const categoryById = new Map(categories.map(c => [c.id, c]));
 
   const totals = new Map(); // categoryId (or null) -> total
@@ -283,6 +286,11 @@ export async function getCategoryTotalsForMonth(yearMonth, accountId) {
       total
     }))
     .sort((a, b) => b.total - a.total);
+}
+
+export async function getCategoryTotalsForMonth(yearMonth, accountId) {
+  const [txns, categories] = await Promise.all([getTransactionsForMonth(yearMonth, accountId), getAll('categories')]);
+  return groupTransactionsByCategory(txns, categories);
 }
 
 export async function getMonthSummary(yearMonth, accountId) {

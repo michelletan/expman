@@ -7,6 +7,7 @@
   import AddAccount from './pages/AddAccount.svelte';
   import Categories from './pages/Categories.svelte';
   import AddTransaction from './pages/AddTransaction.svelte';
+  import Activity from './pages/Activity.svelte';
   import Placeholder from './pages/Placeholder.svelte';
   import TabBar from './lib/components/TabBar.svelte';
 
@@ -99,7 +100,9 @@
           onBack={() => screen = addTransactionReturnTo}
           onSaved={() => screen = addTransactionReturnTo}
         />
-      {:else if screen === 'Activity' || screen === 'Reports'}
+      {:else if screen === 'Activity'}
+        <Activity {accountId} onOpenTransaction={openEditTransaction} />
+      {:else if screen === 'Reports'}
         <Placeholder title={screen} />
       {:else if screen === 'Settings'}
         <Settings onOpenAccounts={() => screen = 'Accounts'} onOpenCategories={() => screen = 'Categories'} />
