@@ -212,8 +212,8 @@
   .section-label { padding: 18px 20px 8px; font-size: 13px; font-weight: 700; color: var(--ink); opacity: .6; }
   .budget-row { padding: 0 20px; display: flex; flex-direction: column; gap: 10px; }
   .card-tile {
-    width: 100%; display: flex; align-items: center; justify-content: space-between;
-    padding: 14px 16px; background: var(--paper-dim); border: none; border-radius: 12px;
+    width: 100%; display: block; text-align: left; box-sizing: border-box;
+    padding: 13px 16px; background: #fff; border: 1px solid var(--paper-line); border-radius: 14px;
   }
   .tx-list { padding: 0 20px; }
   .empty-state { padding: 40px 24px; text-align: center; color: var(--ink); opacity: .5; font-size: 14px; }

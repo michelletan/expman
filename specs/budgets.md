@@ -13,6 +13,11 @@ Budgets screen (list/add/edit), reached from Home's "💰 Budgets" button
 its category — the same pattern Recurring uses instead of a dedicated
 detail screen.
 
+**Amended** (while speccing Reports — see specs/reports.md): budgets are
+now **per-account**, reversing this spec's original account-agnostic
+design (see the old Out of Scope bullet on this, now superseded).
+Requirements below are updated in place rather than left as a diff.
+
 ### User stories
 - As a user, I want to cap my monthly spend on a category (or a specific
   subcategory within it), so I notice when I'm close to going over.
@@ -29,6 +34,9 @@ detail screen.
    specific subcategory within it (`subcategoryId` set, `categoryId` its
    parent) — id-based, resolved live, consistent with every other entity
    in this app. Monthly only for v1 (see Notes) — no `period` field yet.
+1a. A budget also belongs to one **account** (`accountId`, required) —
+   its spend is computed only from that account's transactions, matching
+   Home/Activity/Reports rather than spanning every account.
 2. `isRollover` (boolean): when true, a month's available amount is that
    month's `amount` plus the previous month's leftover, recursively
    (existing `computeBudgetStatus` behavior, capped 24 months back). When
@@ -40,10 +48,13 @@ detail screen.
 4. Deleting a budget is a **hard** delete — nothing references a budget's
    id elsewhere (matches Transactions' rationale, and TODO.md's original
    "Remove this budget deletes the limit only, transactions stay").
-5. **Uniqueness**: at most one budget per category, and separately at
-   most one budget per subcategory — so "Food" and "Food / Dining out"
-   can each have their own budget at the same time. "+ Add budget" only
-   offers categories/subcategories that don't already have one.
+5. **Uniqueness**: at most one budget per **(account, category)** pair,
+   and separately at most one per (account, subcategory) pair — so
+   "Food" and "Food / Dining out" can each have their own budget at the
+   same time, and so can "Food" on Personal Expense and "Food" on a
+   second account. "+ Add budget" only offers categories/subcategories
+   that don't already have one *on the account currently selected in the
+   form*.
 6. **Spend counts toward every budget it matches**: a Dining Out expense
    counts against both the Dining Out subcategory budget (if one exists)
    and the parent Food category budget (if one exists) — a category
@@ -58,10 +69,12 @@ detail screen.
    `[startDate's month, endDate's month or unbounded]`.
 
 **Home** (existing stub — see [Home.svelte](../src/pages/Home.svelte))
-9. THE APP SHALL show up to 3 budgets active for the current month, same
-   as today's stub — if there are none, the whole "Budgets this month"
+9. THE APP SHALL show up to 3 budgets active for the current month **on
+   the currently selected account**, same as today's stub except now
+   account-scoped — if there are none, the whole "Budgets this month"
    section shows nothing (PRD.md, matches the existing `{#if
-   budgets.length}` guard).
+   budgets.length}` guard). Switching accounts on Home changes which
+   budgets show, same as it already changes recent activity.
 10. The "💰 Budgets" ghost button (currently a stub) SHALL open the
     Budgets screen.
 11. Tapping a budget card (Home or the Budgets screen) SHALL switch to
@@ -73,7 +86,9 @@ detail screen.
 12. Month navigation local to the screen (`‹ Sep 2026 ›`), resetting to
     the current month every time the screen opens — no tap-to-jump picker
     (unlike Activity's), matching TODO.md's original scope for this
-    screen.
+    screen. Scoped to the app-wide selected account, like Activity
+    (requirement 1a) — switching accounts elsewhere and coming back shows
+    that account's budgets.
 13. Header totals for the selected month: total budgeted (sum of each
     active budget's `amount` + any rolled-in amount), total spent, amount
     left (budgeted − spent) — simple sums across every active budget; see
@@ -84,11 +99,15 @@ detail screen.
 15. A floating "+ Add" button opens the Add/Edit Budget form.
 
 **Add/Edit Budget form** (new)
-16. Fields: name, target (category or subcategory — via
+16. Fields: **account** (picker among active accounts, defaulting to the
+    app-wide selected one — same picker AddTransaction/Add Recurring
+    already use), name, target (category or subcategory — via
     [CategoryPicker](../src/lib/components/CategoryPicker.svelte),
-    expense-only, extended to hide already-budgeted targets — requirement
-    5), amount, rollover toggle, start date (defaults to today), optional
-    end date.
+    expense-only, extended to hide already-budgeted targets *for the
+    currently-chosen account* — requirement 5), amount, rollover toggle,
+    start date (defaults to today), optional end date. Changing the
+    account after picking a target re-checks requirement 5 (a target
+    taken on the old account may be free on the new one, or vice versa).
 17. Saving requires: name, a target, `amount > 0`, a start date, and (if
     set) an end date on/after the start date.
 18. Editing an existing budget shows Delete with a confirmation modal
@@ -120,18 +139,23 @@ detail screen.
   budget-specific).
 - [db.js](../src/lib/data/db.js): `getBudgets`, `getBudget`,
   `createBudget`, `updateBudget`, `removeBudget` (hard delete), and a
-  rewrite of `computeBudgetStatus` to: key off `subcategoryId` when
-  present (falling back to `categoryId`-only spend otherwise, unchanged
-  from today), respect `isRollover` (skip the recursive lookup entirely
-  when false), use `startDate` instead of `createdAt` as the rollover/
-  active boundary, and resolve a display label ("Food" or "Food / Dining
-  out") the way `resolveTransactionLabels` already does. Add
-  `getBudgetsActiveForMonth(yearMonth)` for Home/Budgets screen to share.
+  rewrite of `computeBudgetStatus` to: filter spend by the budget's own
+  `accountId` (requirement 1a) in addition to category/subcategory, key
+  off `subcategoryId` when present (falling back to `categoryId`-only
+  spend otherwise), respect `isRollover` (skip the recursive lookup
+  entirely when false), use `startDate` instead of `createdAt` as the
+  rollover/active boundary, and resolve a display label ("Food" or "Food
+  / Dining out") the way `resolveTransactionLabels` already does.
+  `getBudgetsActiveForMonth(yearMonth, accountId)` for Home/Budgets
+  screen to share — now takes accountId too. A lazy migration
+  (`ensureBudgetAccountId`, same pattern as `ensureCategoryOrdering`)
+  backfills `accountId` on any budget row saved before this amendment,
+  assigning it to `getAccounts()`'s first account — run once at boot.
 
 ### Data model
-- `budgets`: `{id, name, categoryId, subcategoryId, amount, isRollover,
-  startDate, endDate, createdAt, modifiedAt}`. `subcategoryId` is `null`
-  for a category-level budget.
+- `budgets`: `{id, name, accountId, categoryId, subcategoryId, amount,
+  isRollover, startDate, endDate, createdAt, modifiedAt}`.
+  `subcategoryId` is `null` for a category-level budget.
 
 ### Out of scope
 - Non-monthly periods (daily/weekly/annual) — PRD.md's schema lists a
@@ -145,11 +169,6 @@ detail screen.
 - Settings > Budgets — Recurring isn't reachable from Settings either
   (Home-only for now); Budgets follows the same precedent rather than
   adding a second entry point nothing else has yet.
-- Reconciling a budget's account-agnostic spend total (every account,
-  same as `computeBudgetStatus` computes today) with Activity's
-  account-scoped view when drilling in — a pre-existing inconsistency
-  also already true of Category view's own drill-in, not something this
-  spec introduces or needs to resolve.
 
 ### Acceptance criteria
 - [ ] Home shows up to 3 budgets active this month; the whole section
@@ -167,6 +186,11 @@ detail screen.
       month, filtered to that category or subcategory.
 - [ ] Deleting a budget removes it from every list; its category's past
       transactions are untouched.
+- [ ] A budget on Account A doesn't count spend from Account B, even for
+      the same category; switching the selected account changes which
+      budgets Home/Budgets show.
+- [ ] The same category can have independent budgets on two different
+      accounts at once.
 
 ### Notes
 Source: [PRD.md](../PRD.md) → BUDGETS section, refined through Q&A.
@@ -190,3 +214,9 @@ calculation — revisit if it proves confusing in practice, e.g. by
 excluding subcategory-budgeted amounts from their parent category's
 totals specifically in the *header sum*, while still keeping the
 category card's own number as-is.
+
+**Account scoping was a later amendment**, made while speccing Reports
+(specs/reports.md) once Reports itself needed to decide account scope
+and Budgets' original account-agnostic design came up for comparison —
+re-decided in favor of consistency with Home/Activity/Reports rather
+than keeping Budgets as the one account-agnostic screen.

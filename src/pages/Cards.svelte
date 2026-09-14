@@ -120,7 +120,7 @@
   .content { background: var(--paper); min-height: 100vh; padding: 16px 20px 90px; }
 
   .tile-wrap { display: flex; gap: 6px; margin-bottom: 10px; }
-  .row-wrap { flex: 1; position: relative; border-radius: 12px; overflow: hidden; }
+  .row-wrap { flex: 1; position: relative; border-radius: 14px; overflow: hidden; }
   .delete-btn {
     position: absolute; right: 0; top: 0; bottom: 0; width: 80px;
     background: var(--rust); color: #fff; border: none; font-family: var(--font-body);
@@ -129,9 +129,9 @@
   .delete-btn.visible { opacity: 1; pointer-events: auto; }
 
   .card-row {
-    position: relative; width: 100%; display: flex; align-items: center; justify-content: space-between;
-    padding: 14px 16px; background: var(--paper-dim); border: none; border-radius: 12px;
-    transition: transform .15s ease; transform: translateX(0);
+    position: relative; width: 100%; display: block; text-align: left;
+    padding: 13px 16px; background: #fff; border: 1px solid var(--paper-line); border-radius: 14px;
+    transition: transform .15s ease; transform: translateX(0); box-sizing: border-box;
   }
   .card-row.shifted { transform: translateX(-80px); }
 
