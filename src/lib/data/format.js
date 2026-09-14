@@ -56,7 +56,9 @@ export function shiftYearMonth(yearMonth, delta) {
   return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
 }
 
-function lastDayOfMonth(year, month1Indexed) {
+// Exported for reuse by recurring transactions' own monthly/annual
+// clamping (specs/recurring.md requirement 1), not just getCardPeriod.
+export function lastDayOfMonth(year, month1Indexed) {
   return new Date(year, month1Indexed, 0).getDate();
 }
 

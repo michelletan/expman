@@ -11,6 +11,9 @@
                     the current name live via that id — nothing here is
                     a snapshotted name string, and nothing needs a
                     cascade when the account/category is renamed.
+                    recurringId links an auto-posted row back to the rule
+                    that generated it (null for manually-entered ones) —
+                    see recurring below.
     categories    - {id, name, type, order, isDeleted, color,
                      subcategories: [{id, name, order, isDeleted}]}.
                      Soft-deleted categories/subcategories drop out of
@@ -28,14 +31,21 @@
                      is CALCULATED at read time, not stored — see
                      computeBudgetStatus below)
     recurring     - repeating transaction rules, linked to an account and
-                    a category by id, same as transactions
+                    a category by id, same as transactions. frequency is
+                    daily/weekly/monthly/annual; monthly/annual store a
+                    dayOfMonth (1-31, and anchorMonth for annual)
+                    decoupled from startDate so clamping to a short month
+                    doesn't permanently shift later occurrences. endMode
+                    is 'date'/'count'/'never'. Occurrences are computed
+                    on demand (nthOccurrenceDate), never pre-generated —
+                    see materializeRecurring/materializeAllRecurring.
     cards         - {id, name, resetDate, targetSpend: [{categoryId,
                     amount}], isDeleted, dateCreated}  soft-deleted, no
                     uniqueness/cascade — see specs/cards.md
     meta          - plain key/value settings (theme, lastSyncedAt, ...)
 */
 
-import { genId, todayISO, CATEGORY_COLORS } from './format.js';
+import { genId, todayISO, CATEGORY_COLORS, lastDayOfMonth } from './format.js';
 
 const DB_NAME = 'expman-db';
 const DB_VERSION = 1;
@@ -225,11 +235,12 @@ export async function getTransaction(id) {
 
 /**
  * @param {{ accountId: string, amount: number, type: string, description?: string,
- *   categoryId?: string|null, subcategoryId?: string|null, paymentMethod?: string|null, date?: string }} fields
+ *   categoryId?: string|null, subcategoryId?: string|null, paymentMethod?: string|null, date?: string,
+ *   recurringId?: string|null }} fields
  */
 export async function createTransaction({
   accountId, amount, type, description = '', categoryId = null, subcategoryId = null,
-  paymentMethod = null, date = todayISO()
+  paymentMethod = null, date = todayISO(), recurringId = null
 }) {
   const now = new Date().toISOString();
   const transaction = {
@@ -237,7 +248,7 @@ export async function createTransaction({
     accountId, amount: Number(amount) || 0, type, description,
     categoryId, subcategoryId: categoryId ? subcategoryId : null,
     paymentMethod: type === 'expense' ? (paymentMethod || 'cash') : null,
-    date,
+    date, recurringId,
     createdAt: now, modifiedAt: now
   };
   await put('transactions', transaction);
@@ -634,16 +645,179 @@ export async function softDeleteCard(id) {
   return updateCard(id, { isDeleted: true });
 }
 
-// Recurring rules (the `recurring` store) are just a schedule/label —
-// the actual historical entries are plain rows in `transactions`,
-// linked only by convention via note === 'Repeating:<description>'.
-// Editing a rule's type/category doesn't touch those past rows on its
-// own, so when a rule was migrated wrong (e.g. a salary imported as an
-// expense), this brings every linked transaction in line with the fix.
-export async function updateRecurringInstances(oldNote, newNote, fields) {
-  const all = await getAll('transactions');
-  const matches = all.filter(t => t.note === oldNote);
-  if (!matches.length) return 0;
-  await putMany('transactions', matches.map(t => ({ ...t, ...fields, note: newNote })));
-  return matches.length;
+// ---- recurring ------------------------------------------------------------
+// See specs/recurring.md. A rule never pre-generates future rows — only
+// occurrences up to today ever become real `transactions` (linked via
+// transactions.recurringId), so cancelling or shortening a rule needs no
+// cleanup: the never-materialized future occurrences simply never existed.
+
+function isoDate(year, month1Indexed, day) {
+  return `${year}-${String(month1Indexed).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+}
+
+// Occurrence index n (0-based; n=0 is rule.startDate itself) resolved to a
+// real calendar date. Monthly/annual re-derive the day from
+// dayOfMonth/anchorMonth every time (clamped via lastDayOfMonth) instead
+// of walking forward from startDate, so a short month doesn't permanently
+// shift every later occurrence — this is what lets day 31 correctly land
+// on the 31st again in December after clamping to the 30th in November.
+export function nthOccurrenceDate(rule, n) {
+  const [sy, sm, sd] = rule.startDate.split('-').map(Number);
+  if (rule.frequency === 'daily') {
+    const d = new Date(sy, sm - 1, sd + n);
+    return isoDate(d.getFullYear(), d.getMonth() + 1, d.getDate());
+  }
+  if (rule.frequency === 'weekly') {
+    const d = new Date(sy, sm - 1, sd + n * 7);
+    return isoDate(d.getFullYear(), d.getMonth() + 1, d.getDate());
+  }
+  if (rule.frequency === 'monthly') {
+    const total = (sm - 1) + n;
+    const year = sy + Math.floor(total / 12);
+    const month = (((total % 12) + 12) % 12) + 1;
+    const day = Math.min(rule.dayOfMonth, lastDayOfMonth(year, month));
+    return isoDate(year, month, day);
+  }
+  // annual
+  const year = sy + n;
+  const day = Math.min(rule.dayOfMonth, lastDayOfMonth(year, rule.anchorMonth));
+  return isoDate(year, rule.anchorMonth, day);
+}
+
+export function isRecurringActive(rule, materializedCount) {
+  if (rule.isDeleted) return false;
+  if (rule.endMode === 'count') return materializedCount < rule.occurrenceCount;
+  if (rule.endMode === 'date') return nthOccurrenceDate(rule, materializedCount) <= rule.endDate;
+  return true; // 'never'
+}
+
+// Every rule annotated with its live-computed materializedCount/active/
+// nextDueDate (specs/recurring.md requirement 11) — nothing here is
+// stored, so it's always correct even if past transactions changed.
+export async function getRecurringRules() {
+  const [all, txns] = await Promise.all([getAll('recurring'), getAll('transactions')]);
+  const countByRule = new Map();
+  for (const t of txns) {
+    if (t.recurringId) countByRule.set(t.recurringId, (countByRule.get(t.recurringId) || 0) + 1);
+  }
+  return all.filter(r => !r.isDeleted).map(r => {
+    const materializedCount = countByRule.get(r.id) || 0;
+    const active = isRecurringActive(r, materializedCount);
+    return { ...r, materializedCount, active, nextDueDate: active ? nthOccurrenceDate(r, materializedCount) : null };
+  });
+}
+
+export async function getRecurringRule(id) {
+  return get('recurring', id);
+}
+
+/**
+ * @param {{ accountId: string, categoryId?: string|null, subcategoryId?: string|null,
+ *   type: string, amount: number, description?: string, paymentMethod?: string|null,
+ *   frequency: string, startDate: string, dayOfMonth?: number|null, anchorMonth?: number|null,
+ *   endMode: string, endDate?: string|null, occurrenceCount?: number|null }} fields
+ */
+export async function createRecurring({
+  accountId, categoryId = null, subcategoryId = null, type, amount, description = '',
+  paymentMethod = null, frequency, startDate, dayOfMonth = null, anchorMonth = null,
+  endMode, endDate = null, occurrenceCount = null
+}) {
+  const [, sm] = startDate.split('-').map(Number);
+  const now = new Date().toISOString();
+  const rule = {
+    id: genId('rec'), accountId, categoryId, subcategoryId, type, amount: Number(amount) || 0,
+    description, paymentMethod: type === 'expense' ? (paymentMethod || 'cash') : null,
+    frequency, startDate,
+    dayOfMonth: (frequency === 'monthly' || frequency === 'annual') ? Number(dayOfMonth) : null,
+    anchorMonth: frequency === 'annual' ? (anchorMonth || sm) : null,
+    endMode, endDate: endMode === 'date' ? endDate : null,
+    occurrenceCount: endMode === 'count' ? Number(occurrenceCount) : null,
+    isDeleted: false, createdAt: now, modifiedAt: now
+  };
+  await put('recurring', rule);
+  await materializeRecurring(rule.id);
+  return rule;
+}
+
+// applyToAll (specs/recurring.md requirement 7): when true, every
+// already-materialized transaction linked to this rule is overwritten to
+// match the new display fields too, not just future occurrences. Schedule
+// fields (frequency/dates/endMode/...) never need this — they only ever
+// affect what materializes next.
+export async function updateRecurring(id, fields, applyToAll = false) {
+  const existing = await get('recurring', id);
+  const updated = { ...existing, ...fields, modifiedAt: new Date().toISOString() };
+  await put('recurring', updated);
+
+  if (applyToAll) {
+    const txns = await getAll('transactions');
+    const linked = txns.filter(t => t.recurringId === id);
+    if (linked.length) {
+      const now = new Date().toISOString();
+      await putMany('transactions', linked.map(t => ({
+        ...t,
+        accountId: updated.accountId, categoryId: updated.categoryId, subcategoryId: updated.subcategoryId,
+        amount: updated.amount, description: updated.description,
+        paymentMethod: updated.paymentMethod, type: updated.type,
+        modifiedAt: now
+      })));
+    }
+  }
+
+  await materializeRecurring(id);
+  return updated;
+}
+
+// Stops future occurrences but keeps the rule visible in the Completed
+// section rather than soft-deleting it — modeled as reaching its
+// count-based end right now, so there's no separate "cancelled" flag
+// (specs/recurring.md requirement 9). Past transactions are untouched.
+export async function cancelRecurring(id) {
+  const txns = await getAll('transactions');
+  const materializedCount = txns.filter(t => t.recurringId === id).length;
+  return updateRecurring(id, { endMode: 'count', occurrenceCount: materializedCount });
+}
+
+export async function softDeleteRecurring(id) {
+  const existing = await get('recurring', id);
+  return put('recurring', { ...existing, isDeleted: true, modifiedAt: new Date().toISOString() });
+}
+
+// Materializes every occurrence up to (and including) today that hasn't
+// posted yet — catching up on all of them if the app wasn't opened for a
+// while, not just the latest (specs/recurring.md requirement 4). Called
+// after a rule is created/saved, and looped over every rule at boot by
+// materializeAllRecurring below.
+export async function materializeRecurring(ruleId) {
+  const rule = await get('recurring', ruleId);
+  if (!rule || rule.isDeleted) return 0;
+
+  const today = todayISO();
+  const allTxns = await getAll('transactions');
+  let n = allTxns.filter(t => t.recurringId === ruleId).length;
+  let created = 0;
+
+  while (true) {
+    if (rule.endMode === 'count' && n >= rule.occurrenceCount) break;
+    const date = nthOccurrenceDate(rule, n);
+    if (date > today) break;
+    if (rule.endMode === 'date' && date > rule.endDate) break;
+
+    await createTransaction({
+      accountId: rule.accountId, amount: rule.amount, type: rule.type,
+      description: rule.description, categoryId: rule.categoryId, subcategoryId: rule.subcategoryId,
+      paymentMethod: rule.paymentMethod, date, recurringId: ruleId
+    });
+    n++;
+    created++;
+  }
+  return created;
+}
+
+export async function materializeAllRecurring() {
+  const rules = await getAll('recurring');
+  for (const rule of rules) {
+    if (rule.isDeleted) continue;
+    await materializeRecurring(rule.id);
+  }
 }

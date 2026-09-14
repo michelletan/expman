@@ -8,7 +8,7 @@
   // accounts/accountId live in App.svelte now, shared with Activity
   // (specs/transactions.md requirement 5) — this component just renders
   // them and reports selections back up via onSelectAccount.
-  let { accounts, accountId, onSelectAccount, onAddExpense, onAddIncome, onOpenTransaction } = $props();
+  let { accounts, accountId, onSelectAccount, onAddExpense, onAddIncome, onOpenTransaction, onOpenRecurring } = $props();
 
   let switcherOpen = $state(false);
   let recent = $state([]);
@@ -74,7 +74,7 @@
     <div class="amount">{fmtMoneySigned(monthExpense, 'expense')}</div>
     <div class="income-btn-row">
       <button class="ghost-btn" onclick={onAddIncome}>+ Add Income</button>
-      <button class="ghost-btn neutral">🔁 Recurring</button>
+      <button class="ghost-btn neutral" onclick={onOpenRecurring}>🔁 Recurring</button>
       <button class="ghost-btn neutral">💰 Budgets</button>
     </div>
   </div>

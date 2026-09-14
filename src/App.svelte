@@ -1,6 +1,6 @@
 <script>
   import { onMount } from 'svelte';
-  import { openDB, ensureDefaultAccount, ensureDefaultCategories, ensureCategoryOrdering, getAccounts } from './lib/data/db.js';
+  import { openDB, ensureDefaultAccount, ensureDefaultCategories, ensureCategoryOrdering, materializeAllRecurring, getAccounts } from './lib/data/db.js';
   import Home from './pages/Home.svelte';
   import Settings from './pages/Settings.svelte';
   import Accounts from './pages/Accounts.svelte';
@@ -11,6 +11,8 @@
   import CardDetails from './pages/CardDetails.svelte';
   import AddTransaction from './pages/AddTransaction.svelte';
   import Activity from './pages/Activity.svelte';
+  import Recurring from './pages/Recurring.svelte';
+  import AddEditRecurring from './pages/AddEditRecurring.svelte';
   import Placeholder from './pages/Placeholder.svelte';
   import TabBar from './lib/components/TabBar.svelte';
 
@@ -25,6 +27,7 @@
   let editingAccountId = $state(null);
   let editingCardId = $state(null);
   let viewingCardId = $state(null);
+  let editingRecurringId = $state(null);
 
   // Add Transaction is reached from Home (and later Activity) rather
   // than Settings, so back/save return to whichever tab opened it
@@ -43,7 +46,8 @@
   const TAB_FOR_SCREEN = {
     Home: 'Home', Activity: 'Activity', Reports: 'Reports',
     Settings: 'Settings', Accounts: 'Settings', AddAccount: 'Settings', Categories: 'Settings',
-    Cards: 'Settings', AddEditCard: 'Settings', CardDetails: 'Settings'
+    Cards: 'Settings', AddEditCard: 'Settings', CardDetails: 'Settings',
+    Recurring: 'Home', AddEditRecurring: 'Home'
   };
 
   async function refreshAccounts() {
@@ -56,6 +60,7 @@
     await ensureDefaultAccount();
     await ensureDefaultCategories();
     await ensureCategoryOrdering(); // normalizes order/color/isDeleted before anything reads categories
+    await materializeAllRecurring();
     await refreshAccounts();
     ready = true;
   });
@@ -99,6 +104,14 @@
     addTransactionReturnTo = screen;
     screen = 'AddTransaction';
   }
+
+  function backToRecurring() {
+    screen = 'Recurring';
+  }
+  function openAddRecurring(id) {
+    editingRecurringId = id;
+    screen = 'AddEditRecurring';
+  }
 </script>
 
 <div id="app-shell" data-theme="midnight">
@@ -112,6 +125,7 @@
           onAddExpense={() => openAddTransaction('expense')}
           onAddIncome={() => openAddTransaction('income')}
           onOpenTransaction={openEditTransaction}
+          onOpenRecurring={() => screen = 'Recurring'}
         />
       {:else if screen === 'AddTransaction'}
         <AddTransaction
@@ -123,6 +137,19 @@
         />
       {:else if screen === 'Activity'}
         <Activity {accountId} onOpenTransaction={openEditTransaction} />
+      {:else if screen === 'Recurring'}
+        <Recurring
+          onBack={() => screen = 'Home'}
+          onAdd={() => openAddRecurring(null)}
+          onEdit={(id) => openAddRecurring(id)}
+        />
+      {:else if screen === 'AddEditRecurring'}
+        <AddEditRecurring
+          recurringId={editingRecurringId}
+          defaultAccountId={accountId}
+          onBack={backToRecurring}
+          onSaved={backToRecurring}
+        />
       {:else if screen === 'Reports'}
         <Placeholder title={screen} />
       {:else if screen === 'Settings'}
