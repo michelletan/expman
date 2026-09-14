@@ -15,6 +15,7 @@
   import AddEditRecurring from './pages/AddEditRecurring.svelte';
   import Budgets from './pages/Budgets.svelte';
   import AddEditBudget from './pages/AddEditBudget.svelte';
+  import Backup from './pages/Backup.svelte';
   import Placeholder from './pages/Placeholder.svelte';
   import TabBar from './lib/components/TabBar.svelte';
 
@@ -66,7 +67,7 @@
   const TAB_FOR_SCREEN = {
     Home: 'Home', Activity: 'Activity', Reports: 'Reports',
     Settings: 'Settings', Accounts: 'Settings', AddAccount: 'Settings', Categories: 'Settings',
-    Cards: 'Settings', AddEditCard: 'Settings'
+    Cards: 'Settings', AddEditCard: 'Settings', Backup: 'Settings'
   };
 
   async function refreshAccounts() {
@@ -240,6 +241,7 @@
           onOpenCards={() => screen = 'Cards'}
           onOpenRecurring={openRecurring}
           onOpenBudgets={openBudgets}
+          onOpenBackup={() => screen = 'Backup'}
         />
       {:else if screen === 'Accounts'}
         <Accounts
@@ -262,6 +264,8 @@
         <AddEditCard cardId={editingCardId} onBack={backToCards} onSaved={backToCards} />
       {:else if screen === 'CardDetails'}
         <CardDetails cardId={viewingCardId} onBack={() => screen = cardDetailsReturnTo} />
+      {:else if screen === 'Backup'}
+        <Backup onBack={backToSettings} onImported={() => screen = 'Home'} />
       {/if}
     </div>
     <TabBar
