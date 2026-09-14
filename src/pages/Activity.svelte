@@ -1,4 +1,5 @@
 <script>
+  import { untrack } from 'svelte';
   import { getTransactionsForMonth, getAll, groupTransactionsByCategory } from '../lib/data/db.js';
   import { resolveTransactionLabels } from '../lib/data/transactions.js';
   import { fmtMoney, fmtMonthLabel, shiftYearMonth, currentYearMonth, MONTH_SHORT } from '../lib/data/format.js';
@@ -6,7 +7,11 @@
 
   // Scoped to the app-wide selected account (specs/transactions.md
   // requirement 22 — the same account Home is showing).
-  let { accountId, onOpenTransaction } = $props();
+  // initialCategoryFilter/initialSubcategoryFilter (specs/budgets.md
+  // requirement 19) let a caller (a budget tap) open Activity already
+  // filtered, not just Category view's own drill-in — read once via
+  // untrack, same one-shot-prop pattern as AddTransaction's initialType.
+  let { accountId, onOpenTransaction, initialCategoryFilter = null, initialSubcategoryFilter = null } = $props();
 
   let yearMonth = $state(currentYearMonth());
   let view = $state('date'); // 'date' | 'category'
@@ -28,11 +33,14 @@
     monthPickerOpen = false;
   }
 
-  // Set only by drilling in from a Category view row (requirement 29) —
+  // Set either by drilling in from a Category view row (requirement 29)
+  // or by an initial prop from a budget tap (requirement 19 above) —
   // switching the view toggle directly always clears this.
-  let categoryFilterActive = $state(false);
+  let categoryFilterActive = $state(untrack(() => initialCategoryFilter != null));
   /** @type {string|null} */
-  let categoryFilter = $state(null);
+  let categoryFilter = $state(untrack(() => initialCategoryFilter));
+  /** @type {string|null} */
+  let subcategoryFilter = $state(untrack(() => initialSubcategoryFilter));
   let categoryFilterLabel = $state('');
 
   let transactions = $state([]);
@@ -47,21 +55,34 @@
   // fresher results with stale ones.
   $effect(() => {
     const guard = { cancelled: false };
-    load(yearMonth, accountId, search, categoryFilterActive, categoryFilter, guard);
+    load(yearMonth, accountId, search, categoryFilterActive, categoryFilter, subcategoryFilter, guard);
     return () => { guard.cancelled = true; };
   });
 
-  async function load(month, accountId, search, filterActive, filterCategoryId, guard) {
+  async function load(month, accountId, search, filterActive, filterCategoryId, filterSubcategoryId, guard) {
     const [monthTxns, categories] = await Promise.all([
       getTransactionsForMonth(month, accountId),
       getAll('categories')
     ]);
     if (guard.cancelled) return;
 
+    // Resolve the filter chip's label lazily here rather than requiring
+    // every caller to pass one — drillIntoCategory below already sets it
+    // directly (cheaper, it already has the row's label to hand), so this
+    // only runs for a prop-driven filter (requirement 19) that arrived
+    // without one.
+    if (filterActive && !categoryFilterLabel) {
+      const cat = categories.find(c => c.id === filterCategoryId);
+      const sub = filterSubcategoryId ? cat?.subcategories.find(s => s.id === filterSubcategoryId) : null;
+      categoryFilterLabel = cat ? (sub ? `${cat.name} / ${sub.name}` : cat.name) : '';
+    }
+
     const q = search.trim().toLowerCase();
     const searched = q ? monthTxns.filter(t => (t.description || '').toLowerCase().includes(q)) : monthTxns;
 
-    const dateList = filterActive ? searched.filter(t => (t.categoryId ?? null) === filterCategoryId) : searched;
+    const dateList = filterActive
+      ? searched.filter(t => (t.categoryId ?? null) === filterCategoryId && (!filterSubcategoryId || t.subcategoryId === filterSubcategoryId))
+      : searched;
     const sorted = dateList.slice().sort((a, b) => (b.date || '').localeCompare(a.date || '')); // newest first
     const resolved = await resolveTransactionLabels(sorted);
     if (guard.cancelled) return;
@@ -79,6 +100,7 @@
   function drillIntoCategory(row) {
     categoryFilterActive = true;
     categoryFilter = row.categoryId;
+    subcategoryFilter = null; // Category view only ever groups by category, never subcategory
     categoryFilterLabel = row.category;
     view = 'date';
   }
@@ -86,6 +108,7 @@
   function clearCategoryFilter() {
     categoryFilterActive = false;
     categoryFilter = null;
+    subcategoryFilter = null;
   }
 </script>
 

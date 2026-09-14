@@ -9,7 +9,7 @@
   const barColor = $derived(pct >= 90 ? 'var(--rust)' : 'var(--accent)');
 </script>
 
-<button class="budget-card" onclick={() => onOpen(status.category)}>
+<button class="budget-card" onclick={() => onOpen(status)}>
   <div class="top">
     <div class="cat">
       <span class="dot" style:background={barColor}></span>{status.category}

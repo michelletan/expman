@@ -13,6 +13,8 @@
   import Activity from './pages/Activity.svelte';
   import Recurring from './pages/Recurring.svelte';
   import AddEditRecurring from './pages/AddEditRecurring.svelte';
+  import Budgets from './pages/Budgets.svelte';
+  import AddEditBudget from './pages/AddEditBudget.svelte';
   import Placeholder from './pages/Placeholder.svelte';
   import TabBar from './lib/components/TabBar.svelte';
 
@@ -28,6 +30,14 @@
   let editingCardId = $state(null);
   let viewingCardId = $state(null);
   let editingRecurringId = $state(null);
+  let editingBudgetId = $state(null);
+
+  // Set only when Activity is opened from a budget tap (specs/budgets.md
+  // requirement 19) — cleared by selectTab below whenever the user
+  // switches screens any other way, so a later plain tab tap into
+  // Activity never inherits a stale filter.
+  let activityInitialCategoryFilter = $state(null);
+  let activityInitialSubcategoryFilter = $state(null);
 
   // Add Transaction is reached from Home (and later Activity) rather
   // than Settings, so back/save return to whichever tab opened it
@@ -47,7 +57,8 @@
     Home: 'Home', Activity: 'Activity', Reports: 'Reports',
     Settings: 'Settings', Accounts: 'Settings', AddAccount: 'Settings', Categories: 'Settings',
     Cards: 'Settings', AddEditCard: 'Settings', CardDetails: 'Settings',
-    Recurring: 'Home', AddEditRecurring: 'Home'
+    Recurring: 'Home', AddEditRecurring: 'Home',
+    Budgets: 'Home', AddEditBudget: 'Home'
   };
 
   async function refreshAccounts() {
@@ -112,6 +123,27 @@
     editingRecurringId = id;
     screen = 'AddEditRecurring';
   }
+
+  function backToBudgets() {
+    screen = 'Budgets';
+  }
+  function openAddBudget(id) {
+    editingBudgetId = id;
+    screen = 'AddEditBudget';
+  }
+  function openActivityForBudget(categoryId, subcategoryId) {
+    activityInitialCategoryFilter = categoryId;
+    activityInitialSubcategoryFilter = subcategoryId;
+    screen = 'Activity';
+  }
+
+  // Wraps every other way of changing screens (the tab bar) so a stale
+  // budget filter never leaks into a later, unrelated visit to Activity.
+  function selectTab(tab) {
+    activityInitialCategoryFilter = null;
+    activityInitialSubcategoryFilter = null;
+    screen = tab;
+  }
 </script>
 
 <div id="app-shell" data-theme="midnight">
@@ -126,6 +158,8 @@
           onAddIncome={() => openAddTransaction('income')}
           onOpenTransaction={openEditTransaction}
           onOpenRecurring={() => screen = 'Recurring'}
+          onOpenBudgets={() => screen = 'Budgets'}
+          onOpenBudgetCategory={openActivityForBudget}
         />
       {:else if screen === 'AddTransaction'}
         <AddTransaction
@@ -136,7 +170,12 @@
           onSaved={() => screen = addTransactionReturnTo}
         />
       {:else if screen === 'Activity'}
-        <Activity {accountId} onOpenTransaction={openEditTransaction} />
+        <Activity
+          {accountId}
+          onOpenTransaction={openEditTransaction}
+          initialCategoryFilter={activityInitialCategoryFilter}
+          initialSubcategoryFilter={activityInitialSubcategoryFilter}
+        />
       {:else if screen === 'Recurring'}
         <Recurring
           onBack={() => screen = 'Home'}
@@ -149,6 +188,19 @@
           defaultAccountId={accountId}
           onBack={backToRecurring}
           onSaved={backToRecurring}
+        />
+      {:else if screen === 'Budgets'}
+        <Budgets
+          onBack={() => screen = 'Home'}
+          onAdd={() => openAddBudget(null)}
+          onEdit={(id) => openAddBudget(id)}
+          onOpenCategory={openActivityForBudget}
+        />
+      {:else if screen === 'AddEditBudget'}
+        <AddEditBudget
+          budgetId={editingBudgetId}
+          onBack={backToBudgets}
+          onSaved={backToBudgets}
         />
       {:else if screen === 'Reports'}
         <Placeholder title={screen} />
@@ -183,7 +235,7 @@
     </div>
     <TabBar
       current={screen === 'AddTransaction' ? TAB_FOR_SCREEN[addTransactionReturnTo] : TAB_FOR_SCREEN[screen]}
-      onSelect={(tab) => screen = tab}
+      onSelect={selectTab}
     />
   {/if}
 </div>

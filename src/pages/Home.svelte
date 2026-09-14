@@ -1,6 +1,6 @@
 <script>
   import { getRecentTransactions, getHomeSummary, getBudgetStatuses } from '../lib/data/transactions.js';
-  import { fmtMoneySigned, fmtMonthLabel, currentYearMonth } from '../lib/data/format.js';
+  import { fmtMoney, fmtMoneySigned, fmtMonthLabel, currentYearMonth } from '../lib/data/format.js';
   import TransactionRow from '../lib/components/TransactionRow.svelte';
   import BudgetCard from '../lib/components/BudgetCard.svelte';
   import AccountSwitcher from '../lib/components/AccountSwitcher.svelte';
@@ -8,12 +8,16 @@
   // accounts/accountId live in App.svelte now, shared with Activity
   // (specs/transactions.md requirement 5) — this component just renders
   // them and reports selections back up via onSelectAccount.
-  let { accounts, accountId, onSelectAccount, onAddExpense, onAddIncome, onOpenTransaction, onOpenRecurring } = $props();
+  let { accounts, accountId, onSelectAccount, onAddExpense, onAddIncome, onOpenTransaction, onOpenRecurring, onOpenBudgets, onOpenBudgetCategory } = $props();
 
   let switcherOpen = $state(false);
   let recent = $state([]);
   let monthExpense = $state(0);
+  let totalBalance = $state(0);
+  let monthNet = $state(0);
   let budgets = $state([]);
+  // Collapsed by default (specs/transactions.md requirement 6, PRD.md).
+  let detailsOpen = $state(false);
   const monthLabel = fmtMonthLabel(currentYearMonth());
 
   const currentAccountName = $derived(accounts.find(a => a.id === accountId)?.name ?? '');
@@ -40,12 +44,14 @@
     ]);
     if (guard.cancelled) return;
     monthExpense = summary.monthSummary.expense;
+    totalBalance = summary.balance;
+    monthNet = summary.monthSummary.income - summary.monthSummary.expense;
     budgets = budgetStatuses;
     recent = recentTxns;
   }
 
-  function openBudget(category) {
-    alert('Would open ' + category + ' budget detail.');
+  function openBudget(status) {
+    onOpenBudgetCategory(status.categoryId, status.subcategoryId);
   }
 </script>
 
@@ -72,17 +78,37 @@
   <div class="balance-hero">
     <div class="label">Spent this month · {monthLabel}</div>
     <div class="amount">{fmtMoneySigned(monthExpense, 'expense')}</div>
+
+    <button class="details-toggle" onclick={() => detailsOpen = !detailsOpen} aria-expanded={detailsOpen}>
+      {detailsOpen ? 'Hide' : 'Show'} balance & this month's net
+      <span class="chev" class:open={detailsOpen}>›</span>
+    </button>
+    {#if detailsOpen}
+      <div class="details-panel">
+        <div class="details-row">
+          <span class="details-label">Total balance</span>
+          <span class="details-value">{fmtMoney(totalBalance)}</span>
+        </div>
+        <div class="details-row">
+          <span class="details-label">This month</span>
+          <span class="details-value" class:pos={monthNet >= 0} class:neg={monthNet < 0}>
+            {fmtMoneySigned(Math.abs(monthNet), monthNet >= 0 ? 'income' : 'expense')}
+          </span>
+        </div>
+      </div>
+    {/if}
+
     <div class="income-btn-row">
       <button class="ghost-btn" onclick={onAddIncome}>+ Add Income</button>
       <button class="ghost-btn neutral" onclick={onOpenRecurring}>🔁 Recurring</button>
-      <button class="ghost-btn neutral">💰 Budgets</button>
+      <button class="ghost-btn neutral" onclick={onOpenBudgets}>💰 Budgets</button>
     </div>
   </div>
 
   {#if budgets.length}
     <div class="section-label">Budgets this month</div>
     <div class="budget-row">
-      {#each budgets as status (status.category)}
+      {#each budgets as status (status.budgetId)}
         <BudgetCard {status} onOpen={openBudget} />
       {/each}
     </div>
@@ -129,6 +155,27 @@
     font-family: var(--font-display); font-weight: 600; font-size: 40px;
     font-variant-numeric: tabular-nums; margin-top: 2px; color: #E39A8A;
   }
+  .details-toggle {
+    display: inline-flex; align-items: center; gap: 4px; margin-top: 8px; padding: 0;
+    background: none; border: none; color: #9BA3BC; font-family: var(--font-body);
+    font-size: 12.5px; font-weight: 600;
+  }
+  .details-toggle .chev { display: inline-block; transition: transform .15s ease; }
+  .details-toggle .chev.open { transform: rotate(90deg); }
+
+  .details-panel {
+    margin-top: 10px; padding: 12px 14px; border-radius: 10px; background: rgba(255,255,255,.06);
+    display: flex; flex-direction: column; gap: 6px;
+  }
+  .details-row { display: flex; align-items: center; justify-content: space-between; }
+  .details-label { font-size: 12.5px; color: #9BA3BC; font-weight: 500; }
+  .details-value {
+    font-family: var(--font-display); font-size: 14.5px; font-weight: 600;
+    font-variant-numeric: tabular-nums; color: var(--paper);
+  }
+  .details-value.pos { color: #7BC49A; }
+  .details-value.neg { color: #E39A8A; }
+
   .income-btn-row { margin-top: 16px; display: flex; flex-wrap: wrap; gap: 8px; }
   .ghost-btn {
     display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; border-radius: 20px;

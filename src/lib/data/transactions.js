@@ -6,7 +6,7 @@
   migrated data) instead of the prototype's sample rows.
 */
 
-import { getVisibleTransactions, getMonthSummary, getCurrentBalance, getYearToDate, computeBudgetStatus, getAll } from './db.js';
+import { getVisibleTransactions, getMonthSummary, getCurrentBalance, getYearToDate, getBudgetsActiveForMonth, getAll } from './db.js';
 import { currentYearMonth } from './format.js';
 
 // Neutral fallback for a transaction with no category (or one that
@@ -57,12 +57,10 @@ export async function getHomeSummary(accountId) {
 
 // Budget cards intentionally aren't account-filtered — budgets are a
 // category-level concept shared across accounts (same call as the
-// original app makes from js/views/home.js).
+// original app makes from js/views/home.js). Only budgets active for the
+// current month show (specs/budgets.md requirement 9) — if there are
+// none, Home hides the whole section (PRD.md).
 export async function getBudgetStatuses(limit = 3) {
-  const ym = currentYearMonth();
-  const budgets = await getAll('budgets');
-  const statuses = await Promise.all(
-    budgets.slice(0, limit).map(b => computeBudgetStatus(b.categoryId, ym))
-  );
-  return statuses.filter(Boolean);
+  const statuses = await getBudgetsActiveForMonth(currentYearMonth());
+  return statuses.slice(0, limit);
 }

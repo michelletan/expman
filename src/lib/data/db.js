@@ -27,9 +27,15 @@
                      isDeleted}  (soft-deleted accounts and their
                      transactions are hidden from every in-app view but
                      kept for exportAll() — see getVisibleTransactions).
-    budgets       - {id, categoryId, monthlyLimit}  (per-category, rollover
-                     is CALCULATED at read time, not stored — see
-                     computeBudgetStatus below)
+    budgets       - {id, name, categoryId, subcategoryId, amount,
+                     isRollover, startDate, endDate}. Monthly only for
+                     now — see specs/budgets.md. subcategoryId is null
+                     for a category-level budget; a category and one of
+                     its subcategories can each have their own budget at
+                     once, and a subcategory's spend counts toward both.
+                     Rollover is CALCULATED at read time, not stored —
+                     see computeBudgetStatus below. Hard delete: nothing
+                     references a budget's id elsewhere.
     recurring     - repeating transaction rules, linked to an account and
                     a category by id, same as transactions. frequency is
                     daily/weekly/monthly/annual; monthly/annual store a
@@ -367,9 +373,13 @@ export async function getTopSubcategories(limit = 3) {
 }
 
 // Budget status with rollover: this month's available = this month's
-// limit + last month's leftover (recursively, so a string of underspent
-// months keeps accumulating). Computed at read time so it's always
-// correct even if past transactions change.
+// amount + last month's leftover (recursively, so a string of underspent
+// months keeps accumulating) — only when budget.isRollover is true;
+// otherwise available is always just that month's own amount. Computed
+// at read time so it's always correct even if past transactions change.
+// Takes the budget row directly (not a categoryId lookup) since v1 allows
+// a category AND one of its subcategories to each have their own budget
+// — see specs/budgets.md requirements 5-6.
 //
 // Performance note: fetches the full transaction list ONCE and does
 // all month-filtering in memory across the recursion, rather than
@@ -377,11 +387,11 @@ export async function getTopSubcategories(limit = 3) {
 // history can recurse up to 24 levels — querying IndexedDB fresh each
 // time (real async round-trips, not free) made the UI visibly lag;
 // filtering an already-fetched array is effectively instant.
-export async function computeBudgetStatus(categoryId, yearMonth) {
-  const [budgets, allTxns, categories] = await Promise.all([getAll('budgets'), getVisibleTransactions(), getAll('categories')]);
-  const budget = budgets.find(b => b.categoryId === categoryId);
-  if (!budget) return null;
-  const categoryName = categories.find(c => c.id === categoryId)?.name ?? '';
+export async function computeBudgetStatus(budget, yearMonth) {
+  const [allTxns, categories] = await Promise.all([getVisibleTransactions(), getAll('categories')]);
+  const category = categories.find(c => c.id === budget.categoryId);
+  const subcategory = budget.subcategoryId ? category?.subcategories.find(s => s.id === budget.subcategoryId) : null;
+  const label = category ? (subcategory ? `${category.name} / ${subcategory.name}` : category.name) : 'Unknown';
 
   const byMonth = {}; // yearMonth -> transactions, built once
   for (const t of allTxns) {
@@ -390,43 +400,59 @@ export async function computeBudgetStatus(categoryId, yearMonth) {
     (byMonth[mk] = byMonth[mk] || []).push(t);
   }
 
+  // A subcategory budget's spend is that subcategory only; a category
+  // budget's spend is every expense under it regardless of subcategory —
+  // so a subcategory's spend deliberately counts toward both when both
+  // have a budget (specs/budgets.md requirement 6).
+  function spentFor(ym) {
+    const txns = byMonth[ym] || [];
+    return txns
+      .filter(t => t.type === 'expense' && (
+        budget.subcategoryId ? t.subcategoryId === budget.subcategoryId : t.categoryId === budget.categoryId
+      ))
+      .reduce((s, t) => s + t.amount, 0);
+  }
+
+  const startYm = monthKey(budget.startDate);
+
   function availableFor(ym) {
+    const spent = spentFor(ym);
+    if (!budget.isRollover) return { spent, rolledIn: 0 };
+
+    // Never roll over from before (or into) the budget's own start month
+    // — otherwise a brand-new budget "inherits" years of pre-budget
+    // underspend as phantom rollover, which isn't a real leftover the
+    // person ever had available to spend.
+    if (ym <= startYm) return { spent, rolledIn: 0 };
+
     const [y, m] = ym.split('-').map(Number);
     const prevDate = new Date(y, m - 2, 1); // m is 1-indexed; -2 => previous month
     const prevYm = prevDate.getFullYear() + '-' + String(prevDate.getMonth() + 1).padStart(2, '0');
-
-    const txns = byMonth[ym] || [];
-    const spent = txns.filter(t => t.categoryId === categoryId && t.type === 'expense')
-                       .reduce((s, t) => s + t.amount, 0);
-
-    // Never roll over from before the budget existed — otherwise a
-    // brand-new budget "inherits" years of pre-budget underspend as
-    // phantom rollover, which isn't a real leftover the person ever
-    // had available to spend.
-    const createdAt = budget.createdAt || yearMonth;
-    if (ym < createdAt) return { limit: budget.monthlyLimit, spent, rolledIn: 0 };
+    if (prevYm < startYm) return { spent, rolledIn: 0 };
 
     const monthsBack = (new Date().getFullYear() - y) * 12 + (new Date().getMonth() + 1 - m);
-    if (monthsBack > 24) return { limit: budget.monthlyLimit, spent, rolledIn: 0 };
+    if (monthsBack > 24) return { spent, rolledIn: 0 };
 
     const hasPrevActivity = (byMonth[prevYm] || []).length > 0;
     let rolledIn = 0;
-    if (hasPrevActivity && prevYm >= createdAt) {
+    if (hasPrevActivity) {
       const prev = availableFor(prevYm);
-      if (prev) rolledIn = Math.max(0, (prev.limit + prev.rolledIn) - prev.spent);
+      rolledIn = Math.max(0, (budget.amount + prev.rolledIn) - prev.spent);
     }
-    return { limit: budget.monthlyLimit, spent, rolledIn };
+    return { spent, rolledIn };
   }
 
   const result = availableFor(yearMonth);
   return {
-    categoryId,
-    category: categoryName,
-    limit: result.limit,
+    budgetId: budget.id,
+    categoryId: budget.categoryId,
+    subcategoryId: budget.subcategoryId,
+    category: label,
+    limit: budget.amount,
     rolledIn: result.rolledIn,
-    totalAvailable: result.limit + result.rolledIn,
+    totalAvailable: budget.amount + result.rolledIn,
     spent: result.spent,
-    remaining: (result.limit + result.rolledIn) - result.spent
+    remaining: (budget.amount + result.rolledIn) - result.spent
   };
 }
 
@@ -643,6 +669,62 @@ export async function updateCard(id, fields) {
 
 export async function softDeleteCard(id) {
   return updateCard(id, { isDeleted: true });
+}
+
+// ---- budgets ------------------------------------------------------------
+// See specs/budgets.md. Hard delete (like transactions) — nothing else
+// references a budget's id.
+
+export async function getBudgets() {
+  return getAll('budgets');
+}
+
+export async function getBudget(id) {
+  return get('budgets', id);
+}
+
+/**
+ * @param {{ name: string, categoryId: string, subcategoryId?: string|null, amount: number,
+ *   isRollover?: boolean, startDate?: string, endDate?: string|null }} fields
+ */
+export async function createBudget({
+  name, categoryId, subcategoryId = null, amount, isRollover = true,
+  startDate = todayISO(), endDate = null
+}) {
+  const now = new Date().toISOString();
+  const budget = {
+    id: genId('bud'), name, categoryId, subcategoryId, amount: Number(amount) || 0,
+    isRollover, startDate, endDate: endDate || null,
+    createdAt: now, modifiedAt: now
+  };
+  await put('budgets', budget);
+  return budget;
+}
+
+export async function updateBudget(id, fields) {
+  const existing = await get('budgets', id);
+  return put('budgets', { ...existing, ...fields, modifiedAt: new Date().toISOString() });
+}
+
+export async function removeBudget(id) {
+  return remove('budgets', id);
+}
+
+// A budget is active for a month when that month falls within
+// [startDate's month, endDate's month or unbounded] (specs/budgets.md
+// requirement 8) — used by Home's snapshot and the Budgets screen so an
+// ended or not-yet-started budget doesn't show for months outside its
+// own range.
+function isBudgetActiveForMonth(budget, yearMonth) {
+  if (yearMonth < monthKey(budget.startDate)) return false;
+  if (budget.endDate && yearMonth > monthKey(budget.endDate)) return false;
+  return true;
+}
+
+export async function getBudgetsActiveForMonth(yearMonth) {
+  const budgets = await getBudgets();
+  const active = budgets.filter(b => isBudgetActiveForMonth(b, yearMonth));
+  return Promise.all(active.map(b => computeBudgetStatus(b, yearMonth)));
 }
 
 // ---- recurring ------------------------------------------------------------
