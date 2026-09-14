@@ -22,8 +22,10 @@
   // Categories, Cards > Add/Edit Card, Card Details} screens reached
   // from Settings. Child screens keep the Settings tab highlighted;
   // their back button returns straight to Settings — except Add/Edit
-  // Card and Card Details, which return to the Cards list they came
-  // from (see specs/accounts.md, specs/categories.md, specs/cards.md).
+  // Card, which always returns to the Cards list it's only ever opened
+  // from, and Card Details, which (like Recurring/Budgets below) can
+  // also be opened from Home now and returns wherever it came from
+  // (see specs/accounts.md, specs/categories.md, specs/cards.md).
   let ready = $state(false);
   let screen = $state('Home');
   let editingAccountId = $state(null);
@@ -31,6 +33,14 @@
   let viewingCardId = $state(null);
   let editingRecurringId = $state(null);
   let editingBudgetId = $state(null);
+
+  // Recurring and Budgets are reachable from both Home and Settings now,
+  // so — same idea as addTransactionReturnTo below — each remembers
+  // which one opened it, for its own back button and for which tab stays
+  // highlighted while inside it or its Add/Edit form.
+  let recurringReturnTo = $state('Home');
+  let budgetsReturnTo = $state('Home');
+  let cardDetailsReturnTo = $state('Home');
 
   // Set only when Activity is opened from a budget tap (specs/budgets.md
   // requirement 19) — cleared by selectTab below whenever the user
@@ -56,9 +66,7 @@
   const TAB_FOR_SCREEN = {
     Home: 'Home', Activity: 'Activity', Reports: 'Reports',
     Settings: 'Settings', Accounts: 'Settings', AddAccount: 'Settings', Categories: 'Settings',
-    Cards: 'Settings', AddEditCard: 'Settings', CardDetails: 'Settings',
-    Recurring: 'Home', AddEditRecurring: 'Home',
-    Budgets: 'Home', AddEditBudget: 'Home'
+    Cards: 'Settings', AddEditCard: 'Settings'
   };
 
   async function refreshAccounts() {
@@ -101,6 +109,7 @@
   }
   function openCardDetails(id) {
     viewingCardId = id;
+    cardDetailsReturnTo = screen;
     screen = 'CardDetails';
   }
 
@@ -116,6 +125,10 @@
     screen = 'AddTransaction';
   }
 
+  function openRecurring() {
+    recurringReturnTo = screen;
+    screen = 'Recurring';
+  }
   function backToRecurring() {
     screen = 'Recurring';
   }
@@ -124,6 +137,10 @@
     screen = 'AddEditRecurring';
   }
 
+  function openBudgets() {
+    budgetsReturnTo = screen;
+    screen = 'Budgets';
+  }
   function backToBudgets() {
     screen = 'Budgets';
   }
@@ -144,6 +161,17 @@
     activityInitialSubcategoryFilter = null;
     screen = tab;
   }
+
+  // Which tab stays highlighted — screens reached from more than one
+  // place (Add Transaction, Recurring, Budgets) resolve through wherever
+  // they were actually opened from, not a fixed tab.
+  function currentTab() {
+    if (screen === 'AddTransaction') return TAB_FOR_SCREEN[addTransactionReturnTo];
+    if (screen === 'Recurring' || screen === 'AddEditRecurring') return TAB_FOR_SCREEN[recurringReturnTo];
+    if (screen === 'Budgets' || screen === 'AddEditBudget') return TAB_FOR_SCREEN[budgetsReturnTo];
+    if (screen === 'CardDetails') return TAB_FOR_SCREEN[cardDetailsReturnTo];
+    return TAB_FOR_SCREEN[screen];
+  }
 </script>
 
 <div id="app-shell" data-theme="midnight">
@@ -157,9 +185,10 @@
           onAddExpense={() => openAddTransaction('expense')}
           onAddIncome={() => openAddTransaction('income')}
           onOpenTransaction={openEditTransaction}
-          onOpenRecurring={() => screen = 'Recurring'}
-          onOpenBudgets={() => screen = 'Budgets'}
+          onOpenRecurring={openRecurring}
+          onOpenBudgets={openBudgets}
           onOpenBudgetCategory={openActivityForBudget}
+          onOpenCardDetails={openCardDetails}
         />
       {:else if screen === 'AddTransaction'}
         <AddTransaction
@@ -178,7 +207,7 @@
         />
       {:else if screen === 'Recurring'}
         <Recurring
-          onBack={() => screen = 'Home'}
+          onBack={() => screen = recurringReturnTo}
           onAdd={() => openAddRecurring(null)}
           onEdit={(id) => openAddRecurring(id)}
         />
@@ -191,7 +220,7 @@
         />
       {:else if screen === 'Budgets'}
         <Budgets
-          onBack={() => screen = 'Home'}
+          onBack={() => screen = budgetsReturnTo}
           onAdd={() => openAddBudget(null)}
           onEdit={(id) => openAddBudget(id)}
           onOpenCategory={openActivityForBudget}
@@ -209,6 +238,8 @@
           onOpenAccounts={() => screen = 'Accounts'}
           onOpenCategories={() => screen = 'Categories'}
           onOpenCards={() => screen = 'Cards'}
+          onOpenRecurring={openRecurring}
+          onOpenBudgets={openBudgets}
         />
       {:else if screen === 'Accounts'}
         <Accounts
@@ -230,11 +261,11 @@
       {:else if screen === 'AddEditCard'}
         <AddEditCard cardId={editingCardId} onBack={backToCards} onSaved={backToCards} />
       {:else if screen === 'CardDetails'}
-        <CardDetails cardId={viewingCardId} onBack={backToCards} />
+        <CardDetails cardId={viewingCardId} onBack={() => screen = cardDetailsReturnTo} />
       {/if}
     </div>
     <TabBar
-      current={screen === 'AddTransaction' ? TAB_FOR_SCREEN[addTransactionReturnTo] : TAB_FOR_SCREEN[screen]}
+      current={currentTab()}
       onSelect={selectTab}
     />
   {/if}

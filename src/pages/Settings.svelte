@@ -1,14 +1,16 @@
 <script>
-  let { onOpenAccounts, onOpenCategories, onOpenCards } = $props();
+  let { onOpenAccounts, onOpenCategories, onOpenCards, onOpenRecurring, onOpenBudgets } = $props();
 
-  // Accounts, Categories, and Cards are spec'd so far — see
-  // specs/accounts.md, specs/categories.md, specs/cards.md. Other rows
-  // (Recurring, Budgets, Theme, Backup & Sync) are TODO.md's
-  // "More / Settings hub" list, not yet built.
+  // Accounts, Categories, Cards, Recurring, and Budgets are spec'd so
+  // far — see specs/accounts.md, specs/categories.md, specs/cards.md,
+  // specs/recurring.md, specs/budgets.md. Other rows (Theme, Backup &
+  // Sync) are TODO.md's "More / Settings hub" list, not yet built.
   const options = $derived([
     { label: 'Accounts', onClick: onOpenAccounts },
     { label: 'Categories', onClick: onOpenCategories },
-    { label: 'Cards', onClick: onOpenCards }
+    { label: 'Cards', onClick: onOpenCards },
+    { label: 'Recurring', onClick: onOpenRecurring },
+    { label: 'Budgets', onClick: onOpenBudgets }
   ]);
 </script>
 

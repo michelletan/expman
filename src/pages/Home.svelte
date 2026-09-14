@@ -1,14 +1,16 @@
 <script>
   import { getRecentTransactions, getHomeSummary, getBudgetStatuses } from '../lib/data/transactions.js';
-  import { fmtMoney, fmtMoneySigned, fmtMonthLabel, currentYearMonth } from '../lib/data/format.js';
+  import { getCards, getCardSpendSummary } from '../lib/data/db.js';
+  import { fmtMoney, fmtMoneySigned, fmtMonthLabel, currentYearMonth, getCardPeriod } from '../lib/data/format.js';
   import TransactionRow from '../lib/components/TransactionRow.svelte';
   import BudgetCard from '../lib/components/BudgetCard.svelte';
+  import CardRow from '../lib/components/CardRow.svelte';
   import AccountSwitcher from '../lib/components/AccountSwitcher.svelte';
 
   // accounts/accountId live in App.svelte now, shared with Activity
   // (specs/transactions.md requirement 5) — this component just renders
   // them and reports selections back up via onSelectAccount.
-  let { accounts, accountId, onSelectAccount, onAddExpense, onAddIncome, onOpenTransaction, onOpenRecurring, onOpenBudgets, onOpenBudgetCategory } = $props();
+  let { accounts, accountId, onSelectAccount, onAddExpense, onAddIncome, onOpenTransaction, onOpenRecurring, onOpenBudgets, onOpenBudgetCategory, onOpenCardDetails } = $props();
 
   let switcherOpen = $state(false);
   let recent = $state([]);
@@ -16,6 +18,7 @@
   let totalBalance = $state(0);
   let monthNet = $state(0);
   let budgets = $state([]);
+  let cardRows = $state([]); // [{ card, period, spend, totalTarget }] — every card, not account-scoped (matches Cards.svelte)
   // Collapsed by default (specs/transactions.md requirement 6, PRD.md).
   let detailsOpen = $state(false);
   const monthLabel = fmtMonthLabel(currentYearMonth());
@@ -37,10 +40,11 @@
   });
 
   async function loadData(id, guard) {
-    const [summary, budgetStatuses, recentTxns] = await Promise.all([
+    const [summary, budgetStatuses, recentTxns, cards] = await Promise.all([
       getHomeSummary(id),
       getBudgetStatuses(3),
-      getRecentTransactions(5, id)
+      getRecentTransactions(5, id),
+      getCards()
     ]);
     if (guard.cancelled) return;
     monthExpense = summary.monthSummary.expense;
@@ -48,6 +52,16 @@
     monthNet = summary.monthSummary.income - summary.monthSummary.expense;
     budgets = budgetStatuses;
     recent = recentTxns;
+
+    cardRows = await Promise.all(cards.map(async card => {
+      const period = getCardPeriod(card.resetDate);
+      const { total } = await getCardSpendSummary(card.id, period);
+      return {
+        card, period, spend: total,
+        totalTarget: card.targetSpend.reduce((sum, t) => sum + (t.amount || 0), 0)
+      };
+    }));
+    if (guard.cancelled) return;
   }
 
   function openBudget(status) {
@@ -110,6 +124,17 @@
     <div class="budget-row">
       {#each budgets as status (status.budgetId)}
         <BudgetCard {status} onOpen={openBudget} />
+      {/each}
+    </div>
+  {/if}
+
+  {#if cardRows.length}
+    <div class="section-label">Cards</div>
+    <div class="budget-row">
+      {#each cardRows as { card, period, spend, totalTarget } (card.id)}
+        <button class="card-tile" onclick={() => onOpenCardDetails(card.id)}>
+          <CardRow {card} {period} {spend} {totalTarget} />
+        </button>
       {/each}
     </div>
   {/if}
@@ -186,6 +211,10 @@
 
   .section-label { padding: 18px 20px 8px; font-size: 13px; font-weight: 700; color: var(--ink); opacity: .6; }
   .budget-row { padding: 0 20px; display: flex; flex-direction: column; gap: 10px; }
+  .card-tile {
+    width: 100%; display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 16px; background: var(--paper-dim); border: none; border-radius: 12px;
+  }
   .tx-list { padding: 0 20px; }
   .empty-state { padding: 40px 24px; text-align: center; color: var(--ink); opacity: .5; font-size: 14px; }
 

@@ -1,6 +1,6 @@
 <script>
   import { onMount } from 'svelte';
-  import { getCard, createCard, updateCard, getCategoriesSorted } from '../lib/data/db.js';
+  import { getCard, createCard, updateCard, softDeleteCard, getCategoriesSorted } from '../lib/data/db.js';
 
   let { cardId, onBack, onSaved } = $props();
 
@@ -9,6 +9,7 @@
   /** @type {{categoryId: string, amount: string}[]} */
   let targetSpend = $state([]);
   let expenseCategories = $state([]);
+  let deleteConfirmOpen = $state(false);
 
   const resetDateValid = $derived(Number(resetDate) >= 1 && Number(resetDate) <= 31);
   const canSave = $derived(name.trim() && resetDateValid);
@@ -45,6 +46,11 @@
     } else {
       await createCard(fields);
     }
+    onSaved();
+  }
+
+  async function confirmDelete() {
+    await softDeleteCard(cardId);
     onSaved();
   }
 </script>
@@ -85,8 +91,25 @@
         <button class="add-target-btn" onclick={addTargetRow} disabled={!expenseCategories.length}>+ Add category target</button>
       </div>
     </div>
+
+    {#if cardId}
+      <button class="delete-btn" onclick={() => deleteConfirmOpen = true}>Delete card</button>
+    {/if}
   </div>
 </div>
+
+{#if deleteConfirmOpen}
+  <div class="backdrop" role="button" tabindex="0" onclick={() => deleteConfirmOpen = false} onkeydown={(e) => e.key === 'Escape' && (deleteConfirmOpen = false)}>
+    <div class="confirm-sheet" role="presentation" onclick={(e) => e.stopPropagation()}>
+      <div class="confirm-title">Delete this card?</div>
+      <p class="confirm-body">It disappears from this list, but the record (and transactions paid on it) stay.</p>
+      <div class="confirm-actions">
+        <button class="cancel-confirm-btn" onclick={() => deleteConfirmOpen = false}>Back</button>
+        <button class="delete-confirm-btn" onclick={confirmDelete}>Delete</button>
+      </div>
+    </div>
+  </div>
+{/if}
 
 <style>
   .topbar {
@@ -134,4 +157,25 @@
     font-family: var(--font-body); font-size: 12.5px; font-weight: 700; padding: 4px 0;
   }
   .add-target-btn:disabled { opacity: .4; }
+
+  .delete-btn {
+    display: block; width: 100%; padding: 12px; margin-top: 24px; border-radius: 10px; border: none;
+    background: rgba(181,75,59,.12); color: var(--rust); font-family: var(--font-body);
+    font-size: 14px; font-weight: 700;
+  }
+
+  .backdrop {
+    position: fixed; inset: 0; background: rgba(0,0,0,.4);
+    display: flex; align-items: center; justify-content: center; z-index: 50; padding: 24px;
+  }
+  .confirm-sheet { width: 100%; max-width: 340px; background: var(--paper); border-radius: 16px; padding: 20px; }
+  .confirm-title { font-family: var(--font-display); font-size: 17px; font-weight: 700; color: var(--ink); }
+  .confirm-body { font-family: var(--font-body); font-size: 13.5px; color: var(--ink); opacity: .7; margin: 8px 0 18px; line-height: 1.5; }
+  .confirm-actions { display: flex; gap: 10px; }
+  .cancel-confirm-btn, .delete-confirm-btn {
+    flex: 1; padding: 10px; border-radius: 10px; border: none; font-family: var(--font-body);
+    font-size: 14px; font-weight: 700;
+  }
+  .cancel-confirm-btn { background: var(--paper-dim); color: var(--ink); }
+  .delete-confirm-btn { background: var(--rust); color: #fff; }
 </style>

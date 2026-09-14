@@ -1,11 +1,12 @@
 <script>
   import { onMount } from 'svelte';
-  import { getCards, softDeleteCard } from '../lib/data/db.js';
-  import { fmtMoney, fmtDateShort, getCardPeriod } from '../lib/data/format.js';
+  import { getCards, softDeleteCard, getCardSpendSummary } from '../lib/data/db.js';
+  import { getCardPeriod } from '../lib/data/format.js';
+  import CardRow from '../lib/components/CardRow.svelte';
 
   let { onBack, onAdd, onEdit, onView } = $props();
 
-  let rows = $state([]); // [{ card, period, totalTarget }]
+  let rows = $state([]); // [{ card, period, totalTarget, spend }]
   let revealedId = $state(null); // card whose delete button is showing
   let confirmDeleteId = $state(null);
 
@@ -13,10 +14,13 @@
 
   async function load() {
     const cards = await getCards();
-    rows = cards.map(card => ({
-      card,
-      period: getCardPeriod(card.resetDate),
-      totalTarget: card.targetSpend.reduce((sum, t) => sum + (t.amount || 0), 0)
+    rows = await Promise.all(cards.map(async card => {
+      const period = getCardPeriod(card.resetDate);
+      const { total } = await getCardSpendSummary(card.id, period);
+      return {
+        card, period, spend: total,
+        totalTarget: card.targetSpend.reduce((sum, t) => sum + (t.amount || 0), 0)
+      };
     }));
   }
 
@@ -60,7 +64,7 @@
   </div>
 
   <div class="content">
-    {#each rows as { card, period, totalTarget } (card.id)}
+    {#each rows as { card, period, spend, totalTarget } (card.id)}
       <div class="tile-wrap">
         <div class="row-wrap">
           <button class="delete-btn" class:visible={revealedId === card.id} onclick={() => requestDelete(card.id)}>
@@ -72,11 +76,7 @@
             onpointerdown={handlePointerDown}
             onpointerup={(e) => handlePointerUp(e, card.id)}
           >
-            <div class="card-main">
-              <div class="card-name">{card.name}</div>
-              <div class="card-period">{fmtDateShort(period.start)} – {fmtDateShort(period.end)}</div>
-            </div>
-            <div class="card-spend">{fmtMoney(0)} / {fmtMoney(totalTarget)}</div>
+            <CardRow {card} {period} {spend} {totalTarget} />
           </button>
         </div>
         <button class="icon-btn" onclick={() => onEdit(card.id)} aria-label="Edit {card.name}">✎</button>
@@ -97,7 +97,7 @@
   >
     <div class="confirm-sheet" role="presentation" onclick={(e) => e.stopPropagation()}>
       <div class="confirm-title">Delete this card?</div>
-      <p class="confirm-body">It disappears from this list, but the record stays (in case a future feature links transactions to it).</p>
+      <p class="confirm-body">It disappears from this list, but the record (and transactions paid on it) stay.</p>
       <div class="confirm-actions">
         <button class="cancel-btn" onclick={() => confirmDeleteId = null}>Cancel</button>
         <button class="delete-confirm-btn" onclick={confirmDelete}>Delete</button>
@@ -134,11 +134,6 @@
     transition: transform .15s ease; transform: translateX(0);
   }
   .card-row.shifted { transform: translateX(-80px); }
-
-  .card-main { text-align: left; }
-  .card-name { font-family: var(--font-body); font-size: 15px; font-weight: 700; color: var(--ink); }
-  .card-period { font-family: var(--font-body); font-size: 12.5px; color: var(--ink); opacity: .6; margin-top: 2px; }
-  .card-spend { font-family: var(--font-display); font-weight: 600; font-size: 14px; color: var(--ink); }
 
   .icon-btn {
     width: 40px; border-radius: 10px; background: var(--paper-dim); border: none;

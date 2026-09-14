@@ -639,9 +639,11 @@ export async function ensureDefaultCategories() {
 
 // ---- cards ------------------------------------------------------------
 // Soft-delete, same shape as accounts — but no uniqueness check and no
-// rename-cascade, since nothing references a card by name or id yet (no
-// transactions.cardId — see specs/cards.md). targetSpend entries
-// reference a category by id, resolved live like everything else.
+// rename-cascade. targetSpend entries reference a category by id,
+// resolved live like everything else. Actual spend is linked via
+// transactions.paymentMethod (set to a card's id by Payment Picker —
+// see specs/transactions.md requirement 4), not a separate cardId field —
+// see getCardSpendSummary below.
 
 export async function getCards() {
   const all = await getAll('cards');
@@ -669,6 +671,24 @@ export async function updateCard(id, fields) {
 
 export async function softDeleteCard(id) {
   return updateCard(id, { isDeleted: true });
+}
+
+// Total spend + spend broken down by categoryId for one card's current
+// period — powers the Cards list total, Card Details' per-category
+// breakdown, and Home's card preview, all from a single pass over
+// transactions rather than a query per category.
+export async function getCardSpendSummary(cardId, period) {
+  const txns = await getVisibleTransactions();
+  const inPeriod = txns.filter(t =>
+    t.type === 'expense' && t.paymentMethod === cardId && t.date >= period.start && t.date <= period.end
+  );
+  const byCategory = {};
+  let total = 0;
+  for (const t of inPeriod) {
+    total += t.amount;
+    if (t.categoryId) byCategory[t.categoryId] = (byCategory[t.categoryId] || 0) + t.amount;
+  }
+  return { total, byCategory };
 }
 
 // ---- budgets ------------------------------------------------------------
