@@ -1,12 +1,15 @@
 <script>
   import { onMount } from 'svelte';
-  import { getBudget, getBudgets, createBudget, updateBudget, removeBudget, getAll } from '../lib/data/db.js';
+  import { getBudget, getBudgets, createBudget, updateBudget, removeBudget, getAll, getAccounts } from '../lib/data/db.js';
   import { todayISO } from '../lib/data/format.js';
   import CategoryPicker from '../lib/components/CategoryPicker.svelte';
 
-  let { budgetId, onBack, onSaved } = $props();
+  let { budgetId, defaultAccountId, onBack, onSaved } = $props();
 
   let name = $state('');
+  let accounts = $state([]);
+  /** @type {string|null} */
+  let accountId = $state(null);
   /** @type {string|null} */
   let categoryId = $state(null);
   /** @type {string|null} */
@@ -19,19 +22,29 @@
 
   let pickerOpen = $state(false);
   let deleteConfirmOpen = $state(false);
-  /** @type {string[]} */
-  let disabledIds = $state([]);
+  /** @type {any[]} */
+  let allBudgets = $state([]);
 
   const canSave = $derived(
-    !!(name.trim() && categoryId && Number(amount) > 0 && startDate && (!endDate || endDate >= startDate))
+    !!(name.trim() && accountId && categoryId && Number(amount) > 0 && startDate && (!endDate || endDate >= startDate))
+  );
+
+  // Recomputes whenever accountId changes — switching accounts in the
+  // form re-checks which targets are already taken *on that account*
+  // (specs/budgets.md requirement 16): a target taken on the old account
+  // may be free on the new one, or vice versa.
+  const disabledIds = $derived(
+    allBudgets.filter(b => b.id !== budgetId && b.accountId === accountId).map(targetKey)
   );
 
   onMount(async () => {
-    const allBudgets = await getBudgets();
+    accounts = await getAccounts();
+    allBudgets = await getBudgets();
     if (budgetId) {
       const budget = await getBudget(budgetId);
       if (budget) {
         name = budget.name;
+        accountId = budget.accountId;
         categoryId = budget.categoryId;
         subcategoryId = budget.subcategoryId;
         amount = String(budget.amount);
@@ -40,9 +53,8 @@
         endDate = budget.endDate || '';
         await resolveTargetLabel();
       }
-      disabledIds = allBudgets.filter(b => b.id !== budgetId).map(targetKey);
     } else {
-      disabledIds = allBudgets.map(targetKey);
+      accountId = defaultAccountId ?? accounts[0]?.id ?? null;
     }
   });
 
@@ -67,7 +79,8 @@
   async function save() {
     if (!canSave) return;
     const fields = {
-      name: name.trim(), categoryId: /** @type {string} */ (categoryId), subcategoryId, amount: Number(amount),
+      name: name.trim(), accountId: /** @type {string} */ (accountId),
+      categoryId: /** @type {string} */ (categoryId), subcategoryId, amount: Number(amount),
       isRollover, startDate, endDate: endDate || null
     };
     if (budgetId) {
@@ -92,6 +105,15 @@
   </div>
 
   <div class="content">
+    <label class="field">
+      <span class="field-label">Account</span>
+      <select bind:value={accountId}>
+        {#each accounts as acct (acct.id)}
+          <option value={acct.id}>{acct.name}</option>
+        {/each}
+      </select>
+    </label>
+
     <label class="field">
       <span class="field-label">Name</span>
       <input type="text" bind:value={name} placeholder="e.g. Groceries" />
@@ -165,7 +187,7 @@
     display: block; font-family: var(--font-body); font-size: 12.5px; font-weight: 700;
     color: var(--ink); opacity: .6; margin-bottom: 6px;
   }
-  .field input {
+  .field input, .field select {
     width: 100%; padding: 12px 14px; border-radius: 10px; border: 1.5px solid var(--paper-line);
     background: var(--paper-dim); font-family: var(--font-body); font-size: 15px; color: var(--ink);
     box-sizing: border-box;

@@ -10,8 +10,10 @@ beforeEach(resetDB);
 // specs/budgets.md — Data model, requirement 4
 describe('createBudget / removeBudget', () => {
   it('creates a budget with sensible defaults', async () => {
+    const account = await createAccount({ name: 'Checking' });
     const food = await createCategory({ name: 'Food', type: 'expense' });
-    const budget = await createBudget({ name: 'Groceries', categoryId: food.id, amount: 400 });
+    const budget = await createBudget({ name: 'Groceries', accountId: account.id, categoryId: food.id, amount: 400 });
+    expect(budget.accountId).toBe(account.id);
     expect(budget.subcategoryId).toBeNull();
     expect(budget.isRollover).toBe(true);
     expect(budget.endDate).toBeNull();
@@ -20,7 +22,7 @@ describe('createBudget / removeBudget', () => {
   it('hard-deletes: nothing left behind, transactions untouched', async () => {
     const account = await createAccount({ name: 'Checking' });
     const food = await createCategory({ name: 'Food', type: 'expense' });
-    const budget = await createBudget({ name: 'Groceries', categoryId: food.id, amount: 400 });
+    const budget = await createBudget({ name: 'Groceries', accountId: account.id, categoryId: food.id, amount: 400 });
     await createTransaction({ accountId: account.id, amount: 50, type: 'expense', categoryId: food.id, date: '2026-03-01' });
 
     await removeBudget(budget.id);
@@ -28,6 +30,22 @@ describe('createBudget / removeBudget', () => {
     expect(await getBudgets()).toHaveLength(0);
     const status = await computeBudgetStatus(budget, '2026-03');
     expect(status.spent).toBe(50); // the transaction itself is untouched
+  });
+});
+
+// specs/budgets.md — requirement 1a (amended: budgets are per-account)
+describe('computeBudgetStatus — account scoping', () => {
+  it('only counts spend on the budget\'s own account, even if another account shares the category', async () => {
+    const accountA = await createAccount({ name: 'A' });
+    const accountB = await createAccount({ name: 'B' });
+    const food = await createCategory({ name: 'Food', type: 'expense' });
+    const budget = await createBudget({ name: 'Food', accountId: accountA.id, categoryId: food.id, amount: 100, startDate: '2026-01-01' });
+
+    await createTransaction({ accountId: accountA.id, amount: 20, type: 'expense', categoryId: food.id, date: '2026-03-05' });
+    await createTransaction({ accountId: accountB.id, amount: 999, type: 'expense', categoryId: food.id, date: '2026-03-05' });
+
+    const status = await computeBudgetStatus(budget, '2026-03');
+    expect(status.spent).toBe(20);
   });
 });
 
@@ -41,9 +59,9 @@ describe('computeBudgetStatus — category + subcategory overlap', () => {
     });
     const diningOutId = food.subcategories[0].id;
 
-    const foodBudget = await createBudget({ name: 'Food', categoryId: food.id, amount: 500, startDate: '2026-01-01' });
+    const foodBudget = await createBudget({ name: 'Food', accountId: account.id, categoryId: food.id, amount: 500, startDate: '2026-01-01' });
     const diningBudget = await createBudget({
-      name: 'Dining out', categoryId: food.id, subcategoryId: diningOutId, amount: 100, startDate: '2026-01-01'
+      name: 'Dining out', accountId: account.id, categoryId: food.id, subcategoryId: diningOutId, amount: 100, startDate: '2026-01-01'
     });
 
     await createTransaction({
@@ -66,7 +84,7 @@ describe('computeBudgetStatus — rollover', () => {
   it('accumulates unspent amounts across months when isRollover is true', async () => {
     const account = await createAccount({ name: 'Checking' });
     const food = await createCategory({ name: 'Food', type: 'expense' });
-    const budget = await createBudget({ name: 'Food', categoryId: food.id, amount: 100, isRollover: true, startDate: '2026-01-01' });
+    const budget = await createBudget({ name: 'Food', accountId: account.id, categoryId: food.id, amount: 100, isRollover: true, startDate: '2026-01-01' });
 
     // January: spend 40, leaving 60 to roll into February
     await createTransaction({ accountId: account.id, amount: 40, type: 'expense', categoryId: food.id, date: '2026-01-15' });
@@ -82,7 +100,7 @@ describe('computeBudgetStatus — rollover', () => {
   it('never rolls over anything when isRollover is false', async () => {
     const account = await createAccount({ name: 'Checking' });
     const food = await createCategory({ name: 'Food', type: 'expense' });
-    const budget = await createBudget({ name: 'Food', categoryId: food.id, amount: 100, isRollover: false, startDate: '2026-01-01' });
+    const budget = await createBudget({ name: 'Food', accountId: account.id, categoryId: food.id, amount: 100, isRollover: false, startDate: '2026-01-01' });
 
     await createTransaction({ accountId: account.id, amount: 20, type: 'expense', categoryId: food.id, date: '2026-01-15' });
     await createTransaction({ accountId: account.id, amount: 30, type: 'expense', categoryId: food.id, date: '2026-02-10' });
@@ -98,36 +116,61 @@ describe('computeBudgetStatus — rollover', () => {
     // Pre-budget spend in December should never count as phantom rollover.
     await createTransaction({ accountId: account.id, amount: 999, type: 'expense', categoryId: food.id, date: '2025-12-01' });
 
-    const budget = await createBudget({ name: 'Food', categoryId: food.id, amount: 100, isRollover: true, startDate: '2026-01-01' });
+    const budget = await createBudget({ name: 'Food', accountId: account.id, categoryId: food.id, amount: 100, isRollover: true, startDate: '2026-01-01' });
     const januaryStatus = await computeBudgetStatus(budget, '2026-01');
     expect(januaryStatus.rolledIn).toBe(0);
   });
 });
 
-// specs/budgets.md — requirements 8-9 (active-month windowing)
+// specs/budgets.md — requirements 8-9 (active-month windowing), 1a (account scoping)
 describe('getBudgetsActiveForMonth', () => {
   it('excludes a budget before its start month and after its end month', async () => {
+    const account = await createAccount({ name: 'Checking' });
     const food = await createCategory({ name: 'Food', type: 'expense' });
-    await createBudget({ name: 'Food', categoryId: food.id, amount: 100, startDate: '2026-03-01', endDate: '2026-05-31' });
+    await createBudget({ name: 'Food', accountId: account.id, categoryId: food.id, amount: 100, startDate: '2026-03-01', endDate: '2026-05-31' });
 
-    expect(await getBudgetsActiveForMonth('2026-02')).toHaveLength(0);
-    expect(await getBudgetsActiveForMonth('2026-03')).toHaveLength(1);
-    expect(await getBudgetsActiveForMonth('2026-05')).toHaveLength(1);
-    expect(await getBudgetsActiveForMonth('2026-06')).toHaveLength(0);
+    expect(await getBudgetsActiveForMonth('2026-02', account.id)).toHaveLength(0);
+    expect(await getBudgetsActiveForMonth('2026-03', account.id)).toHaveLength(1);
+    expect(await getBudgetsActiveForMonth('2026-05', account.id)).toHaveLength(1);
+    expect(await getBudgetsActiveForMonth('2026-06', account.id)).toHaveLength(0);
   });
 
   it('includes an unbounded budget for every month from its start onward', async () => {
+    const account = await createAccount({ name: 'Checking' });
     const food = await createCategory({ name: 'Food', type: 'expense' });
-    await createBudget({ name: 'Food', categoryId: food.id, amount: 100, startDate: '2026-01-01' });
+    await createBudget({ name: 'Food', accountId: account.id, categoryId: food.id, amount: 100, startDate: '2026-01-01' });
 
-    expect(await getBudgetsActiveForMonth('2027-01')).toHaveLength(1);
+    expect(await getBudgetsActiveForMonth('2027-01', account.id)).toHaveLength(1);
+  });
+
+  it('only returns budgets belonging to the given account', async () => {
+    const accountA = await createAccount({ name: 'A' });
+    const accountB = await createAccount({ name: 'B' });
+    const food = await createCategory({ name: 'Food', type: 'expense' });
+    await createBudget({ name: 'Food A', accountId: accountA.id, categoryId: food.id, amount: 100, startDate: '2026-01-01' });
+    await createBudget({ name: 'Food B', accountId: accountB.id, categoryId: food.id, amount: 200, startDate: '2026-01-01' });
+
+    const statusesA = await getBudgetsActiveForMonth('2026-03', accountA.id);
+    expect(statusesA).toHaveLength(1);
+    expect(statusesA[0].limit).toBe(100);
+  });
+
+  it('returns every account\'s budgets when no accountId is given', async () => {
+    const accountA = await createAccount({ name: 'A' });
+    const accountB = await createAccount({ name: 'B' });
+    const food = await createCategory({ name: 'Food', type: 'expense' });
+    await createBudget({ name: 'Food A', accountId: accountA.id, categoryId: food.id, amount: 100, startDate: '2026-01-01' });
+    await createBudget({ name: 'Food B', accountId: accountB.id, categoryId: food.id, amount: 200, startDate: '2026-01-01' });
+
+    expect(await getBudgetsActiveForMonth('2026-03')).toHaveLength(2);
   });
 });
 
 describe('updateBudget', () => {
   it('merges fields and bumps modifiedAt', async () => {
+    const account = await createAccount({ name: 'Checking' });
     const food = await createCategory({ name: 'Food', type: 'expense' });
-    const budget = await createBudget({ name: 'Food', categoryId: food.id, amount: 100 });
+    const budget = await createBudget({ name: 'Food', accountId: account.id, categoryId: food.id, amount: 100 });
     const updated = await updateBudget(budget.id, { amount: 150, isRollover: false });
     expect(updated.amount).toBe(150);
     expect(updated.isRollover).toBe(false);

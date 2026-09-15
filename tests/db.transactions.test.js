@@ -88,8 +88,8 @@ describe('getCategoryTotalsForMonth', () => {
     const totals = await getCategoryTotalsForMonth('2026-09', account.id);
 
     expect(totals).toEqual([
-      { categoryId: food.id, category: 'Food', total: 35 },
-      { categoryId: transport.id, category: 'Transport', total: 15 }
+      { categoryId: food.id, category: 'Food', color: food.color, total: 35 },
+      { categoryId: transport.id, category: 'Transport', color: transport.color, total: 15 }
     ]);
   });
 
@@ -99,7 +99,7 @@ describe('getCategoryTotalsForMonth', () => {
 
     const totals = await getCategoryTotalsForMonth('2026-09', account.id);
 
-    expect(totals).toEqual([{ categoryId: null, category: 'Uncategorised', total: 10 }]);
+    expect(totals).toEqual([{ categoryId: null, category: 'Uncategorised', color: '#9CA3AF', total: 10 }]);
   });
 
   it('still resolves a category name after it has been renamed', async () => {
@@ -124,6 +124,6 @@ describe('getCategoryTotalsForMonth', () => {
     await createTransaction({ accountId: accountA.id, amount: 999, type: 'expense', categoryId: food.id, date: '2026-08-01' });
 
     const totals = await getCategoryTotalsForMonth('2026-09', accountA.id);
-    expect(totals).toEqual([{ categoryId: food.id, category: 'Food', total: 10 }]);
+    expect(totals).toEqual([{ categoryId: food.id, category: 'Food', color: food.color, total: 10 }]);
   });
 });

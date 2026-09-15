@@ -16,7 +16,7 @@
   import Budgets from './pages/Budgets.svelte';
   import AddEditBudget from './pages/AddEditBudget.svelte';
   import Backup from './pages/Backup.svelte';
-  import Placeholder from './pages/Placeholder.svelte';
+  import Reports from './pages/Reports.svelte';
   import TabBar from './lib/components/TabBar.svelte';
 
   // Top-level tabs plus the Settings > {Accounts > Add Account,
@@ -221,6 +221,7 @@
         />
       {:else if screen === 'Budgets'}
         <Budgets
+          {accountId}
           onBack={() => screen = budgetsReturnTo}
           onAdd={() => openAddBudget(null)}
           onEdit={(id) => openAddBudget(id)}
@@ -229,11 +230,12 @@
       {:else if screen === 'AddEditBudget'}
         <AddEditBudget
           budgetId={editingBudgetId}
+          defaultAccountId={accountId}
           onBack={backToBudgets}
           onSaved={backToBudgets}
         />
       {:else if screen === 'Reports'}
-        <Placeholder title={screen} />
+        <Reports {accountId} />
       {:else if screen === 'Settings'}
         <Settings
           onOpenAccounts={() => screen = 'Accounts'}

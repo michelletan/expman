@@ -3,19 +3,21 @@
   import { fmtMoney, fmtMonthLabel, shiftYearMonth, currentYearMonth } from '../lib/data/format.js';
   import BudgetCard from '../lib/components/BudgetCard.svelte';
 
-  let { onBack, onAdd, onEdit, onOpenCategory } = $props();
+  // Scoped to the app-wide selected account (specs/budgets.md
+  // requirement 12/1a) — same as Activity.
+  let { accountId, onBack, onAdd, onEdit, onOpenCategory } = $props();
 
   let yearMonth = $state(currentYearMonth());
   let statuses = $state([]);
 
   $effect(() => {
     const guard = { cancelled: false };
-    load(yearMonth, guard);
+    load(yearMonth, accountId, guard);
     return () => { guard.cancelled = true; };
   });
 
-  async function load(month, guard) {
-    const result = await getBudgetsActiveForMonth(month);
+  async function load(month, accId, guard) {
+    const result = await getBudgetsActiveForMonth(month, accId);
     if (guard.cancelled) return;
     statuses = result;
   }

@@ -42,7 +42,7 @@
   async function loadData(id, guard) {
     const [summary, budgetStatuses, recentTxns, cards] = await Promise.all([
       getHomeSummary(id),
-      getBudgetStatuses(3),
+      getBudgetStatuses(3, id),
       getRecentTransactions(5, id),
       getCards()
     ]);

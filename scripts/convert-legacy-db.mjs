@@ -223,7 +223,7 @@ for (const [name, amount] of [['Food', 600], ['Utilities', 1200]]) {
   if (!entry) continue;
   const now = new Date().toISOString();
   budgets.push({
-    id: genId('bud'), name, categoryId: entry.id, subcategoryId: null, amount,
+    id: genId('bud'), name, accountId: defaultAccountId, categoryId: entry.id, subcategoryId: null, amount,
     isRollover: true, startDate: windowStart, endDate: null, createdAt: now, modifiedAt: now
   });
 }

@@ -27,15 +27,20 @@
                      isDeleted}  (soft-deleted accounts and their
                      transactions are hidden from every in-app view but
                      kept for exportAll() — see getVisibleTransactions).
-    budgets       - {id, name, categoryId, subcategoryId, amount,
-                     isRollover, startDate, endDate}. Monthly only for
-                     now — see specs/budgets.md. subcategoryId is null
-                     for a category-level budget; a category and one of
-                     its subcategories can each have their own budget at
-                     once, and a subcategory's spend counts toward both.
-                     Rollover is CALCULATED at read time, not stored —
-                     see computeBudgetStatus below. Hard delete: nothing
-                     references a budget's id elsewhere.
+    budgets       - {id, name, accountId, categoryId, subcategoryId,
+                     amount, isRollover, startDate, endDate}. Monthly
+                     only for now — see specs/budgets.md. Per-account
+                     (amended from an earlier account-agnostic design —
+                     see specs/budgets.md's amendment note): spend is
+                     computed only from that account's transactions, same
+                     scoping as Home/Activity/Reports. subcategoryId is
+                     null for a category-level budget; a category and one
+                     of its subcategories can each have their own budget
+                     at once (on the same account), and a subcategory's
+                     spend counts toward both. Rollover is CALCULATED at
+                     read time, not stored — see computeBudgetStatus
+                     below. Hard delete: nothing references a budget's id
+                     elsewhere.
     recurring     - repeating transaction rules, linked to an account and
                     a category by id, same as transactions. frequency is
                     daily/weekly/monthly/annual; monthly/annual store a
@@ -51,7 +56,7 @@
     meta          - plain key/value settings (theme, lastSyncedAt, ...)
 */
 
-import { genId, todayISO, CATEGORY_COLORS, lastDayOfMonth } from './format.js';
+import { genId, todayISO, CATEGORY_COLORS, UNCATEGORISED_COLOR, lastDayOfMonth } from './format.js';
 
 const DB_NAME = 'expman-db';
 const DB_VERSION = 1;
@@ -301,11 +306,15 @@ export function groupTransactionsByCategory(txns, categories) {
   }
 
   return Array.from(totals.entries())
-    .map(([categoryId, total]) => ({
-      categoryId,
-      category: categoryId ? (categoryById.get(categoryId)?.name ?? 'Uncategorised') : 'Uncategorised',
-      total
-    }))
+    .map(([categoryId, total]) => {
+      const category = categoryId ? categoryById.get(categoryId) : null;
+      return {
+        categoryId,
+        category: category?.name ?? 'Uncategorised',
+        color: category?.color ?? UNCATEGORISED_COLOR,
+        total
+      };
+    })
     .sort((a, b) => b.total - a.total);
 }
 
@@ -349,27 +358,59 @@ export async function getYearToDate(year, accountId) {
   return { expense, income };
 }
 
-// Most-used subcategories overall — powers the "top 3" quick-pick chips
-// on the Add Expense screen. Counts by id (categoryId/subcategoryId),
-// then resolves the current display names once at the end.
-export async function getTopSubcategories(limit = 3) {
-  const [all, categories] = await Promise.all([getVisibleTransactions(), getAll('categories')]);
+// Most-used subcategories — powers the "top 3" quick-pick chips on the
+// Add Expense screen (all-time, no args — unchanged) and, with
+// yearMonth/accountId given, Reports' top-subcategories-by-SPEND chart
+// (specs/reports.md requirement 7 — ranked by amount there, not count,
+// hence the separate `amount` accumulator below always being tracked
+// even though the quick-pick chips only ever sort by count).
+export async function getTopSubcategories(limit = 3, yearMonth = null, accountId = null) {
+  const [rawTxns, categories] = await Promise.all([
+    yearMonth ? getTransactionsForMonth(yearMonth, accountId) : getVisibleTransactions(),
+    getAll('categories')
+  ]);
+  const all = (!yearMonth && accountId) ? rawTxns.filter(t => t.accountId === accountId) : rawTxns;
+
   const counts = {};
+  const amounts = {};
   for (const t of all) {
     if (t.type !== 'expense' || !t.subcategoryId) continue;
     const key = t.categoryId + ' / ' + t.subcategoryId;
     counts[key] = (counts[key] || 0) + 1;
+    amounts[key] = (amounts[key] || 0) + t.amount;
   }
   const categoryById = new Map(categories.map(c => [c.id, c]));
-  return Object.entries(counts)
+  const rankBy = yearMonth ? amounts : counts; // by spend when scoped to a month (Reports), by frequency otherwise (quick-pick chips)
+  return Object.entries(rankBy)
     .sort((a, b) => b[1] - a[1])
     .slice(0, limit)
     .map(([key]) => {
       const [categoryId, subcategoryId] = key.split(' / ');
       const category = categoryById.get(categoryId);
       const subcategory = category?.subcategories.find(s => s.id === subcategoryId);
-      return { categoryId, subcategoryId, category: category?.name, subcategory: subcategory?.name };
+      return {
+        categoryId, subcategoryId, category: category?.name, subcategory: subcategory?.name,
+        amount: amounts[key]
+      };
     });
+}
+
+// Total income + expense per month across a whole year, in one pass over
+// transactions — powers Reports' monthly trend and income-vs-expense
+// charts together (specs/reports.md requirements 4-5), rather than
+// querying per month (12 round trips) or per chart (duplicate scans).
+export async function getYearlyTrend(year, accountId) {
+  const all = await getVisibleTransactions();
+  const income = new Array(12).fill(0);
+  const expense = new Array(12).fill(0);
+  for (const t of all) {
+    if (!t.date || !t.date.startsWith(String(year))) continue;
+    if (accountId && t.accountId !== accountId) continue;
+    const monthIdx = Number(t.date.slice(5, 7)) - 1;
+    if (t.type === 'income') income[monthIdx] += t.amount;
+    else expense[monthIdx] += t.amount;
+  }
+  return { income, expense };
 }
 
 // Budget status with rollover: this month's available = this month's
@@ -403,11 +444,13 @@ export async function computeBudgetStatus(budget, yearMonth) {
   // A subcategory budget's spend is that subcategory only; a category
   // budget's spend is every expense under it regardless of subcategory —
   // so a subcategory's spend deliberately counts toward both when both
-  // have a budget (specs/budgets.md requirement 6).
+  // have a budget (specs/budgets.md requirement 6). Also scoped to the
+  // budget's own account (requirement 1a) — same account-per-budget
+  // model Home/Activity/Reports already use.
   function spentFor(ym) {
     const txns = byMonth[ym] || [];
     return txns
-      .filter(t => t.type === 'expense' && (
+      .filter(t => t.type === 'expense' && t.accountId === budget.accountId && (
         budget.subcategoryId ? t.subcategoryId === budget.subcategoryId : t.categoryId === budget.categoryId
       ))
       .reduce((s, t) => s + t.amount, 0);
@@ -704,16 +747,16 @@ export async function getBudget(id) {
 }
 
 /**
- * @param {{ name: string, categoryId: string, subcategoryId?: string|null, amount: number,
+ * @param {{ name: string, accountId: string, categoryId: string, subcategoryId?: string|null, amount: number,
  *   isRollover?: boolean, startDate?: string, endDate?: string|null }} fields
  */
 export async function createBudget({
-  name, categoryId, subcategoryId = null, amount, isRollover = true,
+  name, accountId, categoryId, subcategoryId = null, amount, isRollover = true,
   startDate = todayISO(), endDate = null
 }) {
   const now = new Date().toISOString();
   const budget = {
-    id: genId('bud'), name, categoryId, subcategoryId, amount: Number(amount) || 0,
+    id: genId('bud'), name, accountId, categoryId, subcategoryId, amount: Number(amount) || 0,
     isRollover, startDate, endDate: endDate || null,
     createdAt: now, modifiedAt: now
   };
@@ -741,9 +784,9 @@ function isBudgetActiveForMonth(budget, yearMonth) {
   return true;
 }
 
-export async function getBudgetsActiveForMonth(yearMonth) {
+export async function getBudgetsActiveForMonth(yearMonth, accountId) {
   const budgets = await getBudgets();
-  const active = budgets.filter(b => isBudgetActiveForMonth(b, yearMonth));
+  const active = budgets.filter(b => isBudgetActiveForMonth(b, yearMonth) && (!accountId || b.accountId === accountId));
   return Promise.all(active.map(b => computeBudgetStatus(b, yearMonth)));
 }
 

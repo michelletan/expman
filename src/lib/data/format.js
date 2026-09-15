@@ -24,6 +24,12 @@ export const CATEGORY_COLORS = [
   '#D6558C', '#A3C935', '#6A4C93', '#22B8CF', '#8D6748'
 ];
 
+// Neutral fallback for a transaction/chart slice with no category — not
+// part of the palette above, so it never collides with a real category's
+// color. Shared by transactions.js (row display) and db.js (category
+// totals/Reports' pie chart).
+export const UNCATEGORISED_COLOR = '#9CA3AF';
+
 export function fmtDateShort(dateStr) {
   if (!dateStr) return '';
   const [, m, d] = dateStr.split('-').map(Number);

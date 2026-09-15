@@ -7,12 +7,7 @@
 */
 
 import { getVisibleTransactions, getMonthSummary, getCurrentBalance, getYearToDate, getBudgetsActiveForMonth, getAll } from './db.js';
-import { currentYearMonth } from './format.js';
-
-// Neutral fallback for a transaction with no category (or one that
-// somehow doesn't resolve) — not part of the picker palette, so it never
-// collides with a real category's color.
-const UNCATEGORISED_COLOR = '#9CA3AF';
+import { currentYearMonth, UNCATEGORISED_COLOR } from './format.js';
 
 export async function getRecentTransactions(limit = 6, accountId) {
   const all = await getVisibleTransactions();
@@ -55,12 +50,10 @@ export async function getHomeSummary(accountId) {
   return { monthSummary, balance, ytd };
 }
 
-// Budget cards intentionally aren't account-filtered — budgets are a
-// category-level concept shared across accounts (same call as the
-// original app makes from js/views/home.js). Only budgets active for the
-// current month show (specs/budgets.md requirement 9) — if there are
-// none, Home hides the whole section (PRD.md).
-export async function getBudgetStatuses(limit = 3) {
-  const statuses = await getBudgetsActiveForMonth(currentYearMonth());
+// Only budgets active for the current month, on the given account, show
+// (specs/budgets.md requirements 9, 1a) — if there are none, Home hides
+// the whole section (PRD.md).
+export async function getBudgetStatuses(limit = 3, accountId) {
+  const statuses = await getBudgetsActiveForMonth(currentYearMonth(), accountId);
   return statuses.slice(0, limit);
 }

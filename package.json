@@ -22,5 +22,8 @@
     "vite": "^8.2.2",
     "vite-plugin-pwa": "^1.3.0",
     "vitest": "^4.1.11"
+  },
+  "dependencies": {
+    "chart.js": "^4.5.1"
   }
 }
