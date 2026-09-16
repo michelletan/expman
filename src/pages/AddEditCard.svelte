@@ -8,6 +8,8 @@
   let resetDate = $state('1');
   /** @type {{categoryId: string, amount: string}[]} */
   let targetSpend = $state([]);
+  let minSpend = $state('');
+  let description = $state('');
   let expenseCategories = $state([]);
   let deleteConfirmOpen = $state(false);
 
@@ -22,6 +24,8 @@
     name = card.name;
     resetDate = String(card.resetDate);
     targetSpend = card.targetSpend.map(t => ({ categoryId: t.categoryId, amount: String(t.amount) }));
+    minSpend = card.minSpend != null ? String(card.minSpend) : '';
+    description = card.description || '';
   });
 
   function addTargetRow() {
@@ -39,7 +43,9 @@
       resetDate: Number(resetDate),
       targetSpend: targetSpend
         .filter(t => t.categoryId && Number(t.amount) > 0)
-        .map(t => ({ categoryId: t.categoryId, amount: Number(t.amount) }))
+        .map(t => ({ categoryId: t.categoryId, amount: Number(t.amount) })),
+      minSpend: Number(minSpend) > 0 ? Number(minSpend) : null,
+      description: description.trim()
     };
     if (cardId) {
       await updateCard(cardId, fields);
@@ -92,6 +98,16 @@
       </div>
     </div>
 
+    <label class="field">
+      <span class="field-label">Minimum spend (optional)</span>
+      <input type="number" step="0.01" min="0" bind:value={minSpend} placeholder="e.g. 500.00" />
+    </label>
+
+    <label class="field">
+      <span class="field-label">Notes (optional)</span>
+      <textarea bind:value={description} placeholder="e.g. waives annual fee at min spend"></textarea>
+    </label>
+
     {#if cardId}
       <button class="delete-btn" onclick={() => deleteConfirmOpen = true}>Delete card</button>
     {/if}
@@ -130,11 +146,12 @@
     display: block; font-family: var(--font-body); font-size: 12.5px; font-weight: 700;
     color: var(--ink); opacity: .6; margin-bottom: 6px;
   }
-  .field input {
+  .field input, .field textarea {
     width: 100%; padding: 12px 14px; border-radius: var(--radius); border: 1.5px solid var(--paper-line);
     background: var(--paper-dim); font-family: var(--font-body); font-size: 15px; color: var(--ink);
     box-sizing: border-box;
   }
+  .field textarea { resize: vertical; min-height: 64px; font-family: var(--font-body); }
   .error { color: var(--rust); font-family: var(--font-body); font-size: 12.5px; margin: 6px 0 0; }
 
   .target-list { display: flex; flex-direction: column; gap: 8px; }

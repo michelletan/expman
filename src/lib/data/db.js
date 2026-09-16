@@ -51,8 +51,9 @@
                     on demand (nthOccurrenceDate), never pre-generated —
                     see materializeRecurring/materializeAllRecurring.
     cards         - {id, name, resetDate, targetSpend: [{categoryId,
-                    amount}], isDeleted, dateCreated}  soft-deleted, no
-                    uniqueness/cascade — see specs/cards.md
+                    amount}], minSpend, description, isDeleted,
+                    dateCreated}  soft-deleted, no uniqueness/cascade —
+                    see specs/cards.md
     meta          - plain key/value settings (theme, lastSyncedAt, ...)
 */
 
@@ -697,11 +698,12 @@ export async function getCard(id) {
   return get('cards', id);
 }
 
-/** @param {{ name: string, resetDate: number, targetSpend?: {categoryId: string, amount: number}[] }} fields */
-export async function createCard({ name, resetDate, targetSpend = [] }) {
+/** @param {{ name: string, resetDate: number, targetSpend?: {categoryId: string, amount: number}[], minSpend?: number|null, description?: string }} fields */
+export async function createCard({ name, resetDate, targetSpend = [], minSpend = null, description = '' }) {
   const card = {
     id: genId('card'), name, resetDate: Number(resetDate),
-    targetSpend, isDeleted: false, dateCreated: todayISO()
+    targetSpend, minSpend: minSpend != null ? Number(minSpend) : null, description,
+    isDeleted: false, dateCreated: todayISO()
   };
   await put('cards', card);
   return card;

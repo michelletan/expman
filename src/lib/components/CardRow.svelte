@@ -9,11 +9,17 @@
   // whatever interaction they need (Cards.svelte's swipeable row,
   // Home's plain tap-to-view row).
   let { card, period, spend, totalTarget } = $props();
+
+  // specs/cards.md requirement 17 — only shown once met, to keep the
+  // compact tile quiet; the fuller "$X to go" picture lives in Card
+  // Details (requirement 19).
+  const minSpendMet = $derived(card.minSpend != null && spend >= card.minSpend);
 </script>
 
 <ProgressCard
   title={card.name}
   subtitle="{fmtDateShort(period.start)} – {fmtDateShort(period.end)}"
+  tag={minSpendMet ? 'Min spend met' : ''}
   spent={spend}
   total={totalTarget}
 />

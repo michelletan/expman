@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import { getCard, getAll, getCardSpendSummary } from '../lib/data/db.js';
   import { fmtMoney, fmtDateShort, getCardPeriod } from '../lib/data/format.js';
+  import ProgressCard from '../lib/components/ProgressCard.svelte';
 
   let { cardId, onBack } = $props();
 
@@ -12,6 +13,12 @@
   /** @type {{ categoryId: string, name: string, amount: number, spent: number }[]} */
   let targets = $state([]);
   let totalSpend = $state(0);
+
+  // specs/cards.md requirements 17/19 — goal-style, like Savings Goals:
+  // clamp the bar to [0, minSpend] so a big single purchase doesn't
+  // overflow it, but say the real story ("Met") in the subtitle.
+  const minSpendClamped = $derived(card?.minSpend ? Math.min(totalSpend, card.minSpend) : 0);
+  const minSpendMet = $derived(card?.minSpend != null && totalSpend >= card.minSpend);
 
   onMount(async () => {
     const loaded = await getCard(cardId);
@@ -54,6 +61,21 @@
           <div class="empty-state">No category targets set.</div>
         {/each}
       </div>
+
+      {#if card.minSpend}
+        <div class="section-label">Minimum spend</div>
+        <div class="min-spend-card">
+          <ProgressCard
+            title="This cycle" spent={minSpendClamped} total={card.minSpend}
+            subtitle={minSpendMet ? 'Met' : `${fmtMoney(card.minSpend - totalSpend)} to go`}
+          />
+        </div>
+      {/if}
+
+      {#if card.description}
+        <div class="section-label">Notes</div>
+        <p class="notes">{card.description}</p>
+      {/if}
     </div>
   {/if}
 </div>
@@ -76,6 +98,7 @@
   .total-spend { font-family: var(--font-display); font-size: 20px; font-weight: 600; color: var(--ink); margin-bottom: 20px; }
 
   .section-label { font-size: 13px; font-weight: 700; color: var(--ink); opacity: .6; margin-bottom: 8px; }
+  .section-label:not(:first-of-type) { margin-top: 20px; }
   .target-list { display: flex; flex-direction: column; gap: 8px; }
   .target-row {
     display: flex; align-items: center; justify-content: space-between;
@@ -86,4 +109,13 @@
   .amounts.over { color: var(--rust); }
 
   .empty-state { padding: 20px 0; text-align: center; color: var(--ink); opacity: .5; font-size: 14px; }
+
+  .min-spend-card {
+    background: #fff; border: 1px solid var(--paper-line); border-radius: var(--radius); padding: 13px 16px;
+  }
+  .notes {
+    margin: 0; padding: 13px 16px; border-radius: var(--radius); background: var(--paper-dim);
+    font-family: var(--font-body); font-size: 14px; color: var(--ink); opacity: .85; line-height: 1.5;
+    white-space: pre-wrap;
+  }
 </style>

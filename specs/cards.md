@@ -93,9 +93,38 @@ computed-spend numbers until a Transactions spec adds that linkage.
 - No default card is created on first boot (unlike
   `ensureDefaultAccount()`) — the Cards list just starts empty.
 
+### Amendment — minimum spend + notes
+Two additions requested directly by the user, beyond the original
+per-category target-spend tracking:
+16. THE APP SHALL let a card optionally set a single **minimum spend**
+    for its current cycle (e.g. "spend $500 to waive the annual fee") —
+    distinct from `targetSpend`: one overall amount, not per-category,
+    compared against the same `getCardSpendSummary(...).total` already
+    computed for the cycle (no new query). Optional; a card with none
+    set shows nothing for this.
+17. WHEN a card's minimum spend is met (`total >= minSpend`) THE APP
+    SHALL show a "Min spend met" tag on its list tile (reusing
+    `ProgressCard`'s existing tag slot, same mechanism as Budgets'
+    "rolled over" tag) — unmet shows no tag on the compact tile (kept
+    for Card Details, requirement 19, to avoid tile clutter).
+18. THE APP SHALL show a "Minimum spend" field (optional, a plain
+    amount) in Add/Edit Card, below the target-spend list.
+19. Card Details SHALL show a "Minimum spend" section (only when set):
+    spend-so-far vs. the minimum as a progress bar, "Met" once reached
+    or "$X to go" otherwise — the same goal-style clamped-bar pattern
+    already built for Savings Goals (`ProgressCard`), since this is the
+    same "reach a target" shape as a goal, not a "stay under" shape like
+    `targetSpend`.
+20. THE APP SHALL let a card optionally hold a free-text **description**
+    (notes) — a multi-line field, same optional/no-cascade treatment as
+    Accounts' `description`. Shown in Card Details (not the compact list
+    tile, which stays as-is) when non-empty; edited in Add/Edit Card.
+
 ### Data model
 - `cards`: `{id, name, resetDate, targetSpend: [{category, amount}],
-  isDeleted, dateCreated}`.
+  minSpend: number|null, description: string, isDeleted, dateCreated}`.
+  `minSpend`/`description` are additive — existing cards without them
+  read as `null`/`''`, no migration needed.
 - Card names are **not** required unique. Unlike Accounts/Categories,
   nothing references a card by name or id yet (no
   `transactions.cardId`), so there's no ambiguous-reference risk to guard
