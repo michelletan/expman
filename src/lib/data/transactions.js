@@ -6,8 +6,8 @@
   migrated data) instead of the prototype's sample rows.
 */
 
-import { getVisibleTransactions, getMonthSummary, getCurrentBalance, getYearToDate, getBudgetsActiveForMonth, getAll } from './db.js';
-import { currentYearMonth, UNCATEGORISED_COLOR } from './format.js';
+import { getVisibleTransactions, getMonthSummary, getCurrentBalance, getYearToDate, getBudgetsActiveForMonth, getAll, getMeta, getTransactionsForMonth, groupTransactionsByCategory } from './db.js';
+import { currentYearMonth, shiftYearMonth, UNCATEGORISED_COLOR } from './format.js';
 
 export async function getRecentTransactions(limit = 6, accountId) {
   const all = await getVisibleTransactions();
@@ -56,4 +56,68 @@ export async function getHomeSummary(accountId) {
 export async function getBudgetStatuses(limit = 3, accountId) {
   const statuses = await getBudgetsActiveForMonth(currentYearMonth(), accountId);
   return statuses.slice(0, limit);
+}
+
+// specs/savings-goals.md — a single ongoing monthly target per account,
+// stored as a meta key rather than its own store (no history, no per-
+// month rows — see the spec's Data model section). null when unset, so
+// Home shows nothing for an account with no goal (requirement 6).
+export async function getSavingsGoalStatus(accountId) {
+  const goal = await getMeta(`savingsGoal:${accountId}`);
+  if (!goal) return null;
+  const summary = await getMonthSummary(currentYearMonth(), accountId);
+  return { goal: Number(goal), net: summary.income - summary.expense };
+}
+
+// specs/spending-callouts.md — expense categories whose spend this month
+// is a real swing (>=20% AND >=$20, requirement 3) from their own
+// trailing 3-prior-month average, ranked by absolute $ deviation
+// (requirement 4). Stateless: recomputed fresh every call, nothing new
+// is stored (see the spec's Out of scope).
+const CALLOUT_MONTHS_BACK = 3;
+const CALLOUT_MIN_PCT = 20;
+const CALLOUT_MIN_AMOUNT = 20;
+
+async function expenseTotalsByCategory(yearMonth, accountId, categories) {
+  const txns = await getTransactionsForMonth(yearMonth, accountId);
+  const expenseTxns = txns.filter(t => t.type === 'expense' && t.categoryId); // Uncategorised excluded (requirement 9)
+  const rows = groupTransactionsByCategory(expenseTxns, categories);
+  return new Map(rows.map(r => [r.categoryId, r]));
+}
+
+export async function getSpendingCallouts(yearMonth, accountId) {
+  const categories = await getAll('categories');
+  const priorMonths = Array.from({ length: CALLOUT_MONTHS_BACK }, (_, i) => shiftYearMonth(yearMonth, -(i + 1)));
+  const [targetTotals, ...priorTotals] = await Promise.all(
+    [yearMonth, ...priorMonths].map(ym => expenseTotalsByCategory(ym, accountId, categories))
+  );
+
+  const categoryIds = new Set([...targetTotals.keys(), ...priorTotals.flatMap(m => [...m.keys()])]);
+  const results = [];
+
+  for (const categoryId of categoryIds) {
+    // Category/name/color come from wherever this category actually has a
+    // row — the target month if it spent there, else whichever prior
+    // month did (covers a category that dropped to $0 this month).
+    const row = targetTotals.get(categoryId) ?? priorTotals.find(m => m.has(categoryId))?.get(categoryId);
+    if (!row) continue; // unreachable — categoryId always came from one of these maps
+    const current = targetTotals.get(categoryId)?.total ?? 0;
+    const priorSum = priorTotals.reduce((sum, m) => sum + (m.get(categoryId)?.total ?? 0), 0);
+    const average = priorSum / CALLOUT_MONTHS_BACK;
+    if (average <= 0) continue; // requirement 2 — no history to compare against
+
+    const deltaAmount = current - average;
+    const deltaPct = (deltaAmount / average) * 100;
+    if (Math.abs(deltaPct) < CALLOUT_MIN_PCT && Math.abs(deltaAmount) < CALLOUT_MIN_AMOUNT) continue; // requirement 3
+
+    const over = deltaAmount > 0;
+    const pct = Math.round(Math.abs(deltaPct));
+    results.push({
+      categoryId, category: row.category, color: row.color,
+      current, average, deltaAmount, deltaPct, over,
+      label: `${row.category} is ${pct}% ${over ? 'above' : 'below'} your 3-month average this month`
+    });
+  }
+
+  return results.sort((a, b) => Math.abs(b.deltaAmount) - Math.abs(a.deltaAmount));
 }

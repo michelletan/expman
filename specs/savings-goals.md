@@ -1,6 +1,6 @@
 ## Savings goals
 
-**Status:** Drafting
+**Status:** Approved
 
 ### Summary
 An optional, ongoing per-account monthly target: "save at least $X this

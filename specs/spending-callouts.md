@@ -1,6 +1,6 @@
 ## Spending call-outs
 
-**Status:** Drafting
+**Status:** Approved
 
 ### Summary
 Surfaces short, data-driven insights like "Food is 42% above your

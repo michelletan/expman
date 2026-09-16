@@ -1,16 +1,17 @@
 <script>
-  import { getRecentTransactions, getHomeSummary, getBudgetStatuses } from '../lib/data/transactions.js';
+  import { getRecentTransactions, getHomeSummary, getBudgetStatuses, getSavingsGoalStatus, getSpendingCallouts } from '../lib/data/transactions.js';
   import { getCards, getCardSpendSummary } from '../lib/data/db.js';
   import { fmtMoney, fmtMoneySigned, fmtMonthLabel, currentYearMonth, getCardPeriod } from '../lib/data/format.js';
   import TransactionRow from '../lib/components/TransactionRow.svelte';
   import BudgetCard from '../lib/components/BudgetCard.svelte';
+  import GoalCard from '../lib/components/GoalCard.svelte';
   import CardRow from '../lib/components/CardRow.svelte';
   import AccountSwitcher from '../lib/components/AccountSwitcher.svelte';
 
   // accounts/accountId live in App.svelte now, shared with Activity
   // (specs/transactions.md requirement 5) — this component just renders
   // them and reports selections back up via onSelectAccount.
-  let { accounts, accountId, onSelectAccount, onAddExpense, onAddIncome, onOpenTransaction, onOpenRecurring, onOpenBudgets, onOpenBudgetCategory, onOpenCardDetails } = $props();
+  let { accounts, accountId, onSelectAccount, onAddExpense, onAddIncome, onOpenTransaction, onOpenRecurring, onOpenBudgets, onOpenBudgetCategory, onOpenCardDetails, onOpenSavingsGoal } = $props();
 
   let switcherOpen = $state(false);
   let recent = $state([]);
@@ -18,6 +19,13 @@
   let totalBalance = $state(0);
   let monthNet = $state(0);
   let budgets = $state([]);
+  // null when the account has no goal set — Home shows nothing for it
+  // then (specs/savings-goals.md requirement 6), same as budgets/cards.
+  let goalStatus = $state(/** @type {{goal: number, net: number}|null} */ (null));
+  // specs/spending-callouts.md — only the single highest-ranked callout,
+  // for the current calendar month (no month-nav on Home); Reports shows
+  // up to 3 and follows its own month-nav instead.
+  let topCallout = $state(/** @type {{label: string, color: string, over: boolean}|null} */ (null));
   let cardRows = $state([]); // [{ card, period, spend, totalTarget }] — every card, not account-scoped (matches Cards.svelte)
   // Collapsed by default (specs/transactions.md requirement 6, PRD.md).
   let detailsOpen = $state(false);
@@ -40,9 +48,11 @@
   });
 
   async function loadData(id, guard) {
-    const [summary, budgetStatuses, recentTxns, cards] = await Promise.all([
+    const [summary, budgetStatuses, goal, callouts, recentTxns, cards] = await Promise.all([
       getHomeSummary(id),
       getBudgetStatuses(3, id),
+      getSavingsGoalStatus(id),
+      getSpendingCallouts(currentYearMonth(), id),
       getRecentTransactions(5, id),
       getCards()
     ]);
@@ -51,6 +61,8 @@
     totalBalance = summary.balance;
     monthNet = summary.monthSummary.income - summary.monthSummary.expense;
     budgets = budgetStatuses;
+    goalStatus = goal;
+    topCallout = callouts[0] ?? null;
     recent = recentTxns;
 
     cardRows = await Promise.all(cards.map(async card => {
@@ -93,6 +105,13 @@
     <div class="label">Spent this month · {monthLabel}</div>
     <div class="amount">{fmtMoneySigned(monthExpense, 'expense')}</div>
 
+    {#if topCallout}
+      <div class="callout-banner" class:warn={topCallout.over}>
+        <span class="dot" style:background={topCallout.color}></span>
+        {topCallout.label}
+      </div>
+    {/if}
+
     <button class="details-toggle" onclick={() => detailsOpen = !detailsOpen} aria-expanded={detailsOpen}>
       {detailsOpen ? 'Hide' : 'Show'} balance & this month's net
       <span class="chev" class:open={detailsOpen}>›</span>
@@ -118,6 +137,13 @@
       <button class="ghost-btn neutral" onclick={onOpenBudgets}>💰 Budgets</button>
     </div>
   </div>
+
+  {#if goalStatus}
+    <div class="section-label">Savings goal</div>
+    <div class="budget-row">
+      <GoalCard status={goalStatus} onOpen={onOpenSavingsGoal} />
+    </div>
+  {/if}
 
   {#if budgets.length}
     <div class="section-label">Budgets this month</div>
@@ -180,6 +206,14 @@
     font-family: var(--font-display); font-weight: 600; font-size: 40px;
     font-variant-numeric: tabular-nums; margin-top: 2px; color: #E39A8A;
   }
+  .callout-banner {
+    display: flex; align-items: center; gap: 7px; margin-top: 10px; padding: 8px 12px;
+    background: rgba(255,255,255,.06); border-radius: var(--radius);
+    font-family: var(--font-body); font-size: 12.5px; font-weight: 600; color: #7BC49A;
+  }
+  .callout-banner.warn { color: #E39A8A; }
+  .callout-banner .dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+
   .details-toggle {
     display: inline-flex; align-items: center; gap: 4px; margin-top: 8px; padding: 0;
     background: none; border: none; color: #9BA3BC; font-family: var(--font-body);

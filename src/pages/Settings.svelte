@@ -2,7 +2,7 @@
   import { onMount } from 'svelte';
   import { getMeta } from '../lib/data/db.js';
 
-  let { onOpenAccounts, onOpenCategories, onOpenCards, onOpenRecurring, onOpenBudgets, onOpenBackup, onOpenTheme } = $props();
+  let { onOpenAccounts, onOpenCategories, onOpenCards, onOpenRecurring, onOpenBudgets, onOpenSavingsGoal, onOpenBackup, onOpenTheme } = $props();
 
   const THEME_NAMES = { midnight: 'Midnight Gold', journal: 'Journal', ledger: 'Ledger', meadow: 'Meadow' };
   let themeName = $state('Midnight Gold');
@@ -11,16 +11,18 @@
     themeName = THEME_NAMES[(await getMeta('theme')) ?? 'midnight'];
   });
 
-  // Accounts, Categories, Cards, Recurring, Budgets, Backup, and Theme
-  // are spec'd so far — see specs/accounts.md, specs/categories.md,
-  // specs/cards.md, specs/recurring.md, specs/budgets.md,
-  // specs/import-export.md, specs/themes.md.
+  // Accounts, Categories, Cards, Recurring, Budgets, Savings Goal,
+  // Backup, and Theme are spec'd so far — see specs/accounts.md,
+  // specs/categories.md, specs/cards.md, specs/recurring.md,
+  // specs/budgets.md, specs/savings-goals.md, specs/import-export.md,
+  // specs/themes.md.
   const options = $derived([
     { label: 'Accounts', onClick: onOpenAccounts },
     { label: 'Categories', onClick: onOpenCategories },
     { label: 'Cards', onClick: onOpenCards },
     { label: 'Recurring', onClick: onOpenRecurring },
     { label: 'Budgets', onClick: onOpenBudgets },
+    { label: 'Savings Goal', onClick: onOpenSavingsGoal },
     { label: 'Theme', value: themeName, onClick: onOpenTheme },
     { label: 'Backup', onClick: onOpenBackup }
   ]);

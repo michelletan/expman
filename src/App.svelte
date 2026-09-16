@@ -18,6 +18,7 @@
   import Backup from './pages/Backup.svelte';
   import Reports from './pages/Reports.svelte';
   import Themes from './pages/Themes.svelte';
+  import SavingsGoal from './pages/SavingsGoal.svelte';
   import TabBar from './lib/components/TabBar.svelte';
 
   // Top-level tabs plus the Settings > {Accounts > Add Account,
@@ -43,6 +44,7 @@
   let recurringReturnTo = $state('Home');
   let budgetsReturnTo = $state('Home');
   let cardDetailsReturnTo = $state('Home');
+  let savingsGoalReturnTo = $state('Home');
 
   // Set only when Activity is opened from a budget tap (specs/budgets.md
   // requirement 19) — cleared by selectTab below whenever the user
@@ -70,6 +72,11 @@
     Settings: 'Settings', Accounts: 'Settings', AddAccount: 'Settings', Categories: 'Settings',
     Cards: 'Settings', AddEditCard: 'Settings', Backup: 'Settings', Themes: 'Settings'
   };
+
+  function openSavingsGoal() {
+    savingsGoalReturnTo = screen;
+    screen = 'SavingsGoal';
+  }
 
   function applyTheme(id) {
     const shell = /** @type {HTMLElement} */ (document.getElementById('app-shell'));
@@ -180,6 +187,7 @@
     if (screen === 'Recurring' || screen === 'AddEditRecurring') return TAB_FOR_SCREEN[recurringReturnTo];
     if (screen === 'Budgets' || screen === 'AddEditBudget') return TAB_FOR_SCREEN[budgetsReturnTo];
     if (screen === 'CardDetails') return TAB_FOR_SCREEN[cardDetailsReturnTo];
+    if (screen === 'SavingsGoal') return TAB_FOR_SCREEN[savingsGoalReturnTo];
     return TAB_FOR_SCREEN[screen];
   }
 </script>
@@ -199,6 +207,7 @@
           onOpenBudgets={openBudgets}
           onOpenBudgetCategory={openActivityForBudget}
           onOpenCardDetails={openCardDetails}
+          onOpenSavingsGoal={openSavingsGoal}
         />
       {:else if screen === 'AddTransaction'}
         <AddTransaction
@@ -252,6 +261,7 @@
           onOpenCards={() => screen = 'Cards'}
           onOpenRecurring={openRecurring}
           onOpenBudgets={openBudgets}
+          onOpenSavingsGoal={openSavingsGoal}
           onOpenBackup={() => screen = 'Backup'}
           onOpenTheme={() => screen = 'Themes'}
         />
@@ -280,6 +290,12 @@
         <Backup onBack={backToSettings} onImported={() => screen = 'Home'} />
       {:else if screen === 'Themes'}
         <Themes onBack={backToSettings} onApplied={applyTheme} />
+      {:else if screen === 'SavingsGoal'}
+        <SavingsGoal
+          {accountId}
+          onBack={() => screen = savingsGoalReturnTo}
+          onSaved={() => screen = savingsGoalReturnTo}
+        />
       {/if}
     </div>
     <TabBar

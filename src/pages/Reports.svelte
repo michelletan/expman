@@ -3,6 +3,7 @@
     getTransactionsForMonth, getAll, groupTransactionsByCategory,
     getYearlyTrend, getBudgetsActiveForMonth, getTopSubcategories
   } from '../lib/data/db.js';
+  import { getSpendingCallouts } from '../lib/data/transactions.js';
   import { fmtMoney, fmtMonthLabel, shiftYearMonth, currentYearMonth, MONTH_SHORT } from '../lib/data/format.js';
   import PieChart from '../lib/components/charts/PieChart.svelte';
   import BarChart from '../lib/components/charts/BarChart.svelte';
@@ -21,6 +22,7 @@
   let trend = $state({ income: [], expense: [] });
   let budgetStatuses = $state([]);
   let topSubs = $state([]);
+  let callouts = $state([]); // specs/spending-callouts.md — up to 3, follows this page's own month-nav
 
   // Resolved once from CSS custom properties — Canvas's fillStyle can't
   // resolve var(--x) itself the way DOM elements can, so chart colors
@@ -45,12 +47,13 @@
 
   async function load(month, accId, guard) {
     const y = Number(month.slice(0, 4));
-    const [monthTxns, categories, yearlyTrend, budgets, subs] = await Promise.all([
+    const [monthTxns, categories, yearlyTrend, budgets, subs, calloutRows] = await Promise.all([
       getTransactionsForMonth(month, accId),
       getAll('categories'),
       getYearlyTrend(y, accId),
       getBudgetsActiveForMonth(month, accId),
-      getTopSubcategories(5, month, accId)
+      getTopSubcategories(5, month, accId),
+      getSpendingCallouts(month, accId)
     ]);
     if (guard.cancelled) return;
 
@@ -58,6 +61,7 @@
     trend = yearlyTrend;
     budgetStatuses = budgets;
     topSubs = subs;
+    callouts = calloutRows.slice(0, 3);
   }
 
   const trendColors = $derived(
@@ -77,6 +81,20 @@
   </div>
 
   <div class="content">
+    {#if callouts.length}
+      <div class="card">
+        <div class="card-title">Call-outs</div>
+        <div class="callout-list">
+          {#each callouts as c (c.categoryId)}
+            <div class="callout-row">
+              <span class="dot" style:background={c.color}></span>
+              <span class="callout-text" class:warn={c.over}>{c.label}</span>
+            </div>
+          {/each}
+        </div>
+      </div>
+    {/if}
+
     <div class="card">
       <div class="card-title">Spend by category</div>
       {#if pieRows.length}
@@ -159,4 +177,10 @@
   .card-title { font-family: var(--font-body); font-size: 13px; font-weight: 700; color: var(--ink); opacity: .7; margin-bottom: 12px; }
 
   .empty-state { padding: 30px 0; text-align: center; color: var(--ink); opacity: .5; font-size: 13.5px; }
+
+  .callout-list { display: flex; flex-direction: column; gap: 10px; }
+  .callout-row { display: flex; align-items: flex-start; gap: 8px; }
+  .callout-row .dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; margin-top: 4px; }
+  .callout-text { font-family: var(--font-body); font-size: 13.5px; color: var(--green); font-weight: 600; line-height: 1.4; }
+  .callout-text.warn { color: var(--rust); }
 </style>

@@ -1,7 +1,7 @@
 <script>
   import { onMount, untrack } from 'svelte';
   import { getAccounts, getAll, getTransaction, createTransaction, updateTransaction, removeTransaction } from '../lib/data/db.js';
-  import { todayISO } from '../lib/data/format.js';
+  import { todayISO, fmtMoney } from '../lib/data/format.js';
   import CategoryPicker from '../lib/components/CategoryPicker.svelte';
   import PaymentPicker from '../lib/components/PaymentPicker.svelte';
 
@@ -16,20 +16,25 @@
   // App.svelte's routing), so this only needs to read initialType once —
   // untrack() says so explicitly instead of fighting the linter.
   let type = $state(untrack(() => initialType) || 'expense');
-  let amount = $state('');
-  let description = $state('');
   let date = $state(todayISO());
-  /** @type {string|null} */
-  let categoryId = $state(null);
-  /** @type {string|null} */
-  let subcategoryId = $state(null);
-  let categoryLabel = $state('Uncategorised');
   let paymentMethod = $state('cash');
   let paymentLabel = $state('Cash');
 
-  let categoryPickerOpen = $state(false);
+  // specs/split-transactions.md — adding a new transaction can enter more
+  // than one description/category/amount line, all sharing account/date/
+  // type/payment method above. Editing always has exactly one line (see
+  // save()) — "Add another line" never shows once transactionId is set.
+  function newLine() {
+    return { description: '', amount: '', categoryId: /** @type {string|null} */ (null), subcategoryId: /** @type {string|null} */ (null), categoryLabel: 'Uncategorised' };
+  }
+  let lines = $state([newLine()]);
+  let categoryPickerLineIndex = $state(/** @type {number|null} */ (null));
+
   let paymentPickerOpen = $state(false);
   let confirmDeleteOpen = $state(false);
+
+  const total = $derived(lines.reduce((sum, l) => sum + (Number(l.amount) || 0), 0));
+  const canSave = $derived(!!accountId && lines.every(l => Number(l.amount) > 0));
 
   onMount(async () => {
     accounts = await getAccounts();
@@ -38,12 +43,9 @@
       if (txn) {
         accountId = txn.accountId;
         type = txn.type;
-        amount = String(txn.amount);
-        description = txn.description || '';
         date = txn.date;
-        categoryId = txn.categoryId;
-        subcategoryId = txn.subcategoryId;
         paymentMethod = txn.paymentMethod || 'cash';
+        lines = [{ description: txn.description || '', amount: String(txn.amount), categoryId: txn.categoryId, subcategoryId: txn.subcategoryId, categoryLabel: 'Uncategorised' }];
         await resolveLabels();
       }
     } else {
@@ -52,25 +54,25 @@
   });
 
   // Categories are type-specific — switching Income/Expense clears
-  // whatever was chosen, since it no longer applies.
+  // whatever was chosen on every line, since none of it applies anymore.
   function setType(newType) {
     if (newType === type) return;
     type = newType;
-    categoryId = null;
-    subcategoryId = null;
-    categoryLabel = 'Uncategorised';
+    lines = lines.map(l => ({ ...l, categoryId: null, subcategoryId: null, categoryLabel: 'Uncategorised' }));
   }
 
   // Resolves categoryId/subcategoryId/paymentMethod into display labels
   // when editing — reads the raw stores (not getCategoriesSorted) so a
   // since-soft-deleted category still resolves correctly here, same as
-  // any other view of an existing transaction.
+  // any other view of an existing transaction. Only ever line 0: editing
+  // always has exactly one line.
   async function resolveLabels() {
-    if (categoryId) {
+    const line = lines[0];
+    if (line.categoryId) {
       const categories = await getAll('categories');
-      const cat = categories.find(c => c.id === categoryId);
-      const sub = cat?.subcategories.find(s => s.id === subcategoryId);
-      categoryLabel = cat ? (sub ? `${cat.name} / ${sub.name}` : cat.name) : 'Uncategorised';
+      const cat = categories.find(c => c.id === line.categoryId);
+      const sub = cat?.subcategories.find(s => s.id === line.subcategoryId);
+      lines[0].categoryLabel = cat ? (sub ? `${cat.name} / ${sub.name}` : cat.name) : 'Uncategorised';
     }
     if (paymentMethod && paymentMethod !== 'cash') {
       const cards = await getAll('cards');
@@ -78,11 +80,25 @@
     }
   }
 
+  function addLine() {
+    lines.push(newLine());
+  }
+
+  function removeLine(index) {
+    if (lines.length <= 1) return;
+    lines.splice(index, 1);
+  }
+
+  function openCategoryPicker(index) {
+    categoryPickerLineIndex = index;
+  }
+
   function selectCategory(newCategoryId, newSubcategoryId, label) {
-    categoryId = newCategoryId;
-    subcategoryId = newSubcategoryId;
-    categoryLabel = label;
-    categoryPickerOpen = false;
+    const line = lines[/** @type {number} */ (categoryPickerLineIndex)];
+    line.categoryId = newCategoryId;
+    line.subcategoryId = newSubcategoryId;
+    line.categoryLabel = label;
+    categoryPickerLineIndex = null;
   }
 
   function selectPayment(newPaymentMethod, label) {
@@ -91,18 +107,26 @@
     paymentPickerOpen = false;
   }
 
+  // With exactly 1 line this is identical to the pre-split single save
+  // (specs/split-transactions.md requirement 5); with more, each line
+  // becomes its own independent transaction (requirement 7) — no shared
+  // id or marker is ever written anywhere.
   async function save() {
-    const numAmount = Number(amount);
-    if (!(numAmount > 0) || !accountId) return;
-    const fields = {
-      accountId, amount: numAmount, type, description: description.trim(), date,
-      categoryId, subcategoryId,
-      paymentMethod: type === 'expense' ? paymentMethod : null
-    };
+    if (!canSave || !accountId) return;
+    const shared = { accountId, type, date, paymentMethod: type === 'expense' ? paymentMethod : null };
     if (transactionId) {
-      await updateTransaction(transactionId, fields);
+      const line = lines[0];
+      await updateTransaction(transactionId, {
+        ...shared, amount: Number(line.amount), description: line.description.trim(),
+        categoryId: line.categoryId, subcategoryId: line.subcategoryId
+      });
     } else {
-      await createTransaction(fields);
+      for (const line of lines) {
+        await createTransaction({
+          ...shared, amount: Number(line.amount), description: line.description.trim(),
+          categoryId: line.categoryId, subcategoryId: line.subcategoryId
+        });
+      }
     }
     onSaved();
   }
@@ -117,7 +141,7 @@
   <div class="topbar">
     <button class="back-btn" onclick={onBack}>‹ Back</button>
     <div class="title">{transactionId ? 'Edit' : 'Add'} {type === 'income' ? 'Income' : 'Expense'}</div>
-    <button class="save-btn" onclick={save} disabled={!(Number(amount) > 0) || !accountId}>Save</button>
+    <button class="save-btn" onclick={save} disabled={!canSave}>Save</button>
   </div>
 
   <div class="content">
@@ -126,10 +150,40 @@
       <button class="type-btn" class:active={type === 'income'} onclick={() => setType('income')}>Income</button>
     </div>
 
-    <label class="field">
-      <span class="field-label">Amount</span>
-      <input type="number" step="0.01" min="0" bind:value={amount} placeholder="0.00" />
-    </label>
+    {#each lines as line, i (i)}
+      {#if lines.length > 1}
+        <div class="line-header">
+          <span class="line-label">Item {i + 1}</span>
+          <button class="remove-line-btn" onclick={() => removeLine(i)}>Remove</button>
+        </div>
+      {/if}
+
+      <label class="field">
+        <span class="field-label">Amount</span>
+        <input type="number" step="0.01" min="0" bind:value={line.amount} placeholder="0.00" />
+      </label>
+
+      <label class="field">
+        <span class="field-label">Description</span>
+        <input type="text" bind:value={line.description} placeholder="Optional" />
+      </label>
+
+      <button class="picker-row" onclick={() => openCategoryPicker(i)}>
+        <span class="field-label">Category</span>
+        <span class="picker-value">{line.categoryLabel}</span>
+      </button>
+    {/each}
+
+    {#if !transactionId}
+      <button class="add-line-btn" onclick={addLine}>+ Add another line</button>
+    {/if}
+
+    {#if lines.length > 1}
+      <div class="total-row">
+        <span>Total</span>
+        <span class="total-amount">{fmtMoney(total)}</span>
+      </div>
+    {/if}
 
     <label class="field">
       <span class="field-label">Account</span>
@@ -141,19 +195,9 @@
     </label>
 
     <label class="field">
-      <span class="field-label">Description</span>
-      <input type="text" bind:value={description} placeholder="Optional" />
-    </label>
-
-    <label class="field">
       <span class="field-label">Date</span>
       <input type="date" bind:value={date} />
     </label>
-
-    <button class="picker-row" onclick={() => categoryPickerOpen = true}>
-      <span class="field-label">Category</span>
-      <span class="picker-value">{categoryLabel}</span>
-    </button>
 
     {#if type === 'expense'}
       <button class="picker-row" onclick={() => paymentPickerOpen = true}>
@@ -168,8 +212,8 @@
   </div>
 </div>
 
-{#if categoryPickerOpen}
-  <CategoryPicker {type} onSelect={selectCategory} onClose={() => categoryPickerOpen = false} />
+{#if categoryPickerLineIndex !== null}
+  <CategoryPicker {type} onSelect={selectCategory} onClose={() => categoryPickerLineIndex = null} />
 {/if}
 
 {#if paymentPickerOpen}
@@ -212,6 +256,13 @@
   }
   .type-btn.active { background: var(--accent); color: var(--accent-ink); opacity: 1; border-color: var(--accent); }
 
+  .line-header {
+    display: flex; align-items: center; justify-content: space-between; margin: 4px 0 10px;
+    padding-top: 12px; border-top: 1px solid var(--paper-line);
+  }
+  .line-label { font-family: var(--font-body); font-size: 12.5px; font-weight: 700; color: var(--ink); opacity: .6; }
+  .remove-line-btn { background: none; border: none; color: var(--rust); font-family: var(--font-body); font-size: 12.5px; font-weight: 700; }
+
   .field { display: block; margin-bottom: 16px; }
   .field-label {
     display: block; font-family: var(--font-body); font-size: 12.5px; font-weight: 700;
@@ -229,6 +280,19 @@
     box-sizing: border-box;
   }
   .picker-value { display: block; font-family: var(--font-body); font-size: 15px; color: var(--ink); margin-top: 2px; }
+
+  .add-line-btn {
+    display: block; width: 100%; padding: 12px; margin-bottom: 16px; border-radius: var(--radius);
+    border: 1.5px dashed var(--paper-line); background: none; color: var(--ink); opacity: .7;
+    font-family: var(--font-body); font-size: 14px; font-weight: 700;
+  }
+
+  .total-row {
+    display: flex; align-items: center; justify-content: space-between; padding: 12px 14px;
+    margin-bottom: 16px; border-radius: var(--radius); background: var(--paper-dim);
+    font-family: var(--font-body); font-size: 14px; font-weight: 700; color: var(--ink);
+  }
+  .total-amount { font-family: var(--font-display); font-size: 16px; }
 
   .delete-btn {
     display: block; width: 100%; padding: 12px; margin-top: 12px; border-radius: var(--radius); border: none;

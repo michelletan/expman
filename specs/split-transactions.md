@@ -1,6 +1,6 @@
 ## Split transactions
 
-**Status:** Drafting
+**Status:** Approved
 
 ### Summary
 Lets Add Transaction create more than one transaction in one sitting —
