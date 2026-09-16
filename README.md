@@ -1,12 +1,13 @@
 # expman
 
-A personal expense/budget tracker, being ported from a vanilla JS + IndexedDB
-app (`budget-app`) to Svelte + Vite. It's a local-first, installable PWA:
-all data lives in IndexedDB on-device, with optional Google Drive sync.
+A personal expense/budget tracker: Svelte 5 + Vite, installable as a PWA.
+Local-first — every store lives in IndexedDB on-device, there's no backend
+or account, and the app is fully usable offline once installed.
 
-Migration status and the full audited requirements live in [TODO.md](TODO.md).
-Only [Home.svelte](src/pages/Home.svelte) has been ported so far; everything
-else below describes the target feature set from the original app.
+Originally ported from a vanilla JS + IndexedDB app (`budget-app`); see
+[PRD.md](PRD.md) and [TODO.md](TODO.md) for that history. Every feature
+below now has its own spec in [specs/](specs/), which is the up-to-date
+source of truth for exact behavior — this file is a summary.
 
 ## Getting started
 
@@ -19,129 +20,116 @@ npm run dev
 npm run build    # production build to dist/
 npm run preview  # preview the production build
 npm run deploy   # build and publish dist/ to GitHub Pages
+npm test         # run the test suite once
+npm run test:watch
+npx svelte-check # type-check
 ```
 
 ## Features
 
 ### Home
-- Account switcher (Personal Expense / Loans / All) filters the whole screen;
-  "All" combines every account
-- Balance, this month's expense/income, and year-to-date at a glance
-- Budget snapshot cards (progress bar, tap through to detail)
-- Recent activity list, tap a row to edit
-- Bottom tab bar: Home / Activity / Calendar / Reports / More
+- Account switcher (when more than one account exists) filters the whole
+  screen
+- This month's spend front and center, with a collapsible balance /
+  this month's net detail
+- A spending call-out, when a category is notably above or below its own
+  3-month average this month
+- A savings goal card, when one is set for the account
+- Budget snapshot cards for any budgets active this month
+- Card snapshot tiles (cycle spend vs. target)
+- Recent activity (last 5 transactions), tap to edit
+- Floating "+" for a new expense; shortcuts for Add Income, Recurring,
+  and Budgets
 
 ### Activity
-- Full transaction list, searchable by note, category, or subcategory
-- Filter chips built from categories actually present in the data
-- Grouped by month, then by day, newest first, each header showing its net total
-- Tap a row to open it in edit mode
+- Month picker (`‹ Sep 2026 ›`), unbounded, plus a jump-to year/month grid
+- Search by description within the visible month
+- Date view (every transaction, newest first) or Category view (one row
+  per category, tap through to that category's transactions)
 
-### Add / Edit Transaction
-- One sheet for expense entry, income entry, and editing
-- Numeric keypad plus an inline calculator for the amount
-- Up to 6 quick-pick subcategory chips (most-used, or Income's subcategories),
-  with a full Category Picker behind "More…"
-- Account, date, payment method (expense only), and note fields
+### Add / Edit transaction
+- One page for both adding and editing
+- Income/expense toggle, account, date, description, category +
+  subcategory, payment method (cash or an active card)
+- Split entry: add more than one description/category/amount line to
+  create several independent transactions in one sitting, sharing the
+  same account/date/payment method — e.g. one supermarket run becomes
+  separate Food/Household/Baby transactions
 - Delete with confirmation when editing
-- Save requires an amount > 0 and a category; new transactions default to
-  `Uncleared` status
-
-### Calculator
-- Left-to-right evaluation (like a physical calculator, no operator precedence)
-- Clear / backspace / digits / operators / equals, rounded to 2 decimals
-- "Use this amount" feeds the result back into Add/Edit Transaction
-
-### Category Picker
-- Categories filtered by type (expense vs. the single Income category),
-  sorted alphabetically and grouped/collapsible
-- Reused by both the transaction form and the recurring form
-
-### Payment Picker
-- General methods (Cash, Debit, Electronic Transfer) always available
-- Active credit cards listed below; expired cards excluded
-- Selection records both a display name and a stable card id, so renaming a
-  card never orphans past transactions
-
-### Calendar
-- Month-by-month view of transactions, unbounded navigation (future months
-  included, unlike Home/Reports)
-- Header shows the visible month's transaction count and net total
-
-### Reports
-- Mini bar chart of expense-by-month for the selected year, tap for detail
-- This month's expense broken down by category (% and amount, largest first)
-- Custom report: pick a date range and optional category for an
-  income/expense breakdown, with date validation
-
-### Chart Detail
-- One row per month for the selected year with exact amounts
-- Year navigation; current month highlighted when viewing the current year
-- Year total expense shown
 
 ### Budgets
-- Per-category monthly limits with independent month navigation
-- Rollover: a month's available amount is its limit plus the previous
-  month's leftover, computed recursively (capped 24 months back)
-- Header totals: total budgeted, total spent, amount left
-- "+ Add category budget" only offers categories that don't have one yet
+- Per-category (or per-subcategory) monthly spending limits, scoped to
+  one account
+- Optional rollover: unspent amount carries into the next month
+- Each budget row clearly shows how much is left (or how far over)
+- Snapshot on Home; full list + add/edit screen with its own month nav
 
-### Budget Detail
-- Reached by tapping a budget card on Home or Budgets
-- Independent month navigation
-- Lists that category's expense transactions for the month, newest first
-- "Remove this budget" deletes the limit only; transactions are untouched
+### Savings goals
+- One ongoing monthly target per account: "save at least $X," measured
+  as that calendar month's income minus expense
+- Progress card on Home when set; edited from Settings
+
+### Spending call-outs
+- Surfaces categories spending notably more or less than their own
+  trailing 3-month average, filtered to real swings (not noise)
+- The single top call-out on Home; up to 3, ranked, on Reports
+
+### Reports
+- Five charts, all scoped to the selected account and a shared month/
+  year navigator: spend by category, monthly spend trend, income vs.
+  expense, budget vs. actual, and top spending subcategories
 
 ### Recurring transactions
-- Rules split into Upcoming (sorted by next due date) and Completed/expired
-- Header shows total monthly amount committed across active expense rules
-- On every app launch, any due rule automatically posts a real transaction
-  for each missed occurrence, with a summary notification
-- Recurring Form: description, amount, type, category, frequency
-  (monthly/quarterly/half-yearly/yearly), start date, optional end date
-- Status and next-due-date are derived by walking forward from the start
-  date, never entered directly
-- Editing a rule's category/type cascades to every transaction it already
-  generated
-- "Mark as ended today" and delete, when editing an existing rule
+- Rules (subscriptions, salary, rent, etc.) with daily/weekly/monthly/
+  annual cadence and a flexible end condition (date, occurrence count,
+  or never)
+- Due occurrences post automatically as real transactions on launch,
+  catching up on anything missed while the app was closed
+- Editing an active rule can bulk-update every transaction it already
+  generated, or affect only future ones
+- Cancel (keeps history, stops future occurrences) vs. delete (removes
+  the rule from the list)
+
+### Categories
+- Income and expense categories, each with subcategories, browsable and
+  expandable
+- Inline editing: name, type, subcategories, color, and manual reordering
+- Soft delete — a deleted category's past transactions keep showing
+  correctly, it just can't be picked for new ones
+- Import/export just the category list as its own JSON file
 
 ### Cards
-- Active card tiles show the current billing cycle's spend and date range
-  (custom cycle start day per card, not calendar month)
-- Cards are never deleted, only expired — history is kept, but expired
-  cards drop out of the Payment Picker
-- Expired cards show lifetime spend instead of cycle spend
-- Card Detail: independent cycle navigation, category breakdown, full
-  transaction list for the visible cycle, and an "Expire this card" action
-
-### More / Settings
-- Hub rows for Cards, Accounts, Categories, Recurring, Budgets, and Theme,
-  each showing a live count or current value
-- Backup & Sync: optional Google Drive sign-in, "Synced Xm ago" status
-- Manual backup-to-file (full JSON export) and restore-from-file
-  (full replace, with confirmation, reloads the app)
-- Automatic daily local backup at launch
-
-### Theme picker
-- 4 themes — Midnight Gold (default), Forest Slate, Plum Dusk, Harbor Blue
-- Selecting a theme applies and persists it immediately
+- Track a monthly target spend per category, per credit card
+- Custom cycle start day per card (e.g. 11th–10th), computed automatically
+- Soft delete — expired cards keep their history but drop out of the
+  payment picker
 
 ### Accounts
-- Set each account's real current balance
-- Saving stamps a `balanceAnchorDate`; only transactions after that date
-  affect the balance going forward, so balance is never reconstructed from
-  full transaction history
-- Planned: create/edit/delete accounts (a new feature beyond the original
-  app — see [TODO.md](TODO.md#after-the-migration-is-done))
+- Full create/edit/soft-delete (a new capability beyond the original app)
+- Balance computed live from initial balance + every transaction
+
+### Backup & restore
+- Whole-app export/import as a single JSON file, from Settings > Backup
+- Import is a full replace, with an explicit confirmation first
+
+### Themes
+- 4 built-in themes — Midnight Gold, Journal, Ledger, Meadow — each with
+  its own colors, fonts, and corner-radius character, not just a palette
+  swap
+- Applies instantly and persists across launches
 
 ### Cross-cutting
-- Installable PWA, fully usable offline (IndexedDB-backed)
-- First launch seeds every store from a bundled JSON snapshot
-- Overlay sheets can stack, painted in open-order
-- Every top-level screen re-fetches fresh data each time it's shown
+- Installable PWA (manifest + service worker via `vite-plugin-pwa`),
+  fully usable offline
+- Home, Activity, Budgets, and Reports all stay scoped to one selected
+  account at a time
+- Every screen re-fetches fresh data each time it's shown
 
 ## Tech stack
 
 - [Svelte 5](https://svelte.dev/) + [Vite](https://vitejs.dev/)
-- IndexedDB for local storage, optional Google Drive sync
+- IndexedDB for local storage — no backend, no account
+- [Chart.js](https://www.chartjs.org/) for Reports
+- [vite-plugin-pwa](https://vite-pwa-org.netlify.app/) for offline/installable support
+- [Vitest](https://vitest.dev/) for tests
 - Deployed to GitHub Pages via `gh-pages`
