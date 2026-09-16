@@ -79,7 +79,7 @@
   .target-list { display: flex; flex-direction: column; gap: 8px; }
   .target-row {
     display: flex; align-items: center; justify-content: space-between;
-    padding: 12px 14px; border-radius: 10px; background: var(--paper-dim);
+    padding: 12px 14px; border-radius: var(--radius); background: var(--paper-dim);
   }
   .cat-name { font-family: var(--font-body); font-size: 14px; font-weight: 600; color: var(--ink); }
   .amounts { font-family: var(--font-display); font-weight: 600; font-size: 14px; color: var(--ink); }

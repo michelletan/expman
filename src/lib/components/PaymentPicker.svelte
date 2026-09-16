@@ -33,7 +33,7 @@
   }
   .sheet {
     width: 100%; max-width: 480px; background: var(--paper);
-    border-radius: 16px 16px 0 0; padding: 16px 8px max(env(safe-area-inset-bottom), 16px);
+    border-radius: var(--radius) var(--radius) 0 0; padding: 16px 8px max(env(safe-area-inset-bottom), 16px);
   }
   .title {
     font-family: var(--font-body); font-size: 13px; font-weight: 700;
@@ -41,7 +41,7 @@
   }
   .row {
     display: block; width: 100%; text-align: left; padding: 12px;
-    border-radius: 10px; background: none; border: none;
+    border-radius: var(--radius); background: none; border: none;
     font-family: var(--font-body); font-size: 15px; font-weight: 600; color: var(--ink);
   }
 </style>

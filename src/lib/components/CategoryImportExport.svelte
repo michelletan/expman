@@ -66,7 +66,7 @@
   }
   .sheet {
     width: 100%; max-width: 480px; background: var(--paper);
-    border-radius: 16px 16px 0 0; padding: 18px 20px max(env(safe-area-inset-bottom), 20px);
+    border-radius: var(--radius) var(--radius) 0 0; padding: 18px 20px max(env(safe-area-inset-bottom), 20px);
   }
   .title {
     font-family: var(--font-display); font-size: 16px; font-weight: 700;
@@ -74,7 +74,7 @@
   }
   .action-btn {
     position: relative; display: flex; align-items: center; justify-content: center;
-    width: 100%; padding: 12px; border-radius: 10px; margin-bottom: 10px; cursor: pointer;
+    width: 100%; padding: 12px; border-radius: var(--radius); margin-bottom: 10px; cursor: pointer;
     font-family: var(--font-body); font-size: 14px; font-weight: 700;
     background: var(--paper-dim); color: var(--ink); border: none; box-sizing: border-box;
   }

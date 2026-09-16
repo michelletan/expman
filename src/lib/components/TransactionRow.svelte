@@ -42,7 +42,7 @@
     text-align: left; font-family: var(--font-body);
   }
   .tx-icon {
-    width: 38px; height: 38px; border-radius: 10px; flex-shrink: 0;
+    width: 38px; height: 38px; border-radius: var(--radius); flex-shrink: 0;
     display: flex; align-items: center; justify-content: center;
     font-size: 15px; color: #fff; font-weight: 700; font-family: var(--font-display);
   }

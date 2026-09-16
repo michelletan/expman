@@ -78,7 +78,7 @@
   .rule-list { display: flex; flex-direction: column; gap: 8px; }
   .rule-row {
     display: flex; align-items: center; justify-content: space-between;
-    padding: 13px 16px; border-radius: 12px; background: var(--paper-dim); border: none;
+    padding: 13px 16px; border-radius: var(--radius); background: var(--paper-dim); border: none;
     font-family: var(--font-body); text-align: left;
   }
   .rule-main { min-width: 0; }

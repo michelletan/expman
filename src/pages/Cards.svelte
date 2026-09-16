@@ -120,7 +120,7 @@
   .content { background: var(--paper); min-height: 100vh; padding: 16px 20px 90px; }
 
   .tile-wrap { display: flex; gap: 6px; margin-bottom: 10px; }
-  .row-wrap { flex: 1; position: relative; border-radius: 14px; overflow: hidden; }
+  .row-wrap { flex: 1; position: relative; border-radius: var(--radius); overflow: hidden; }
   .delete-btn {
     position: absolute; right: 0; top: 0; bottom: 0; width: 80px;
     background: var(--rust); color: #fff; border: none; font-family: var(--font-body);
@@ -130,13 +130,13 @@
 
   .card-row {
     position: relative; width: 100%; display: block; text-align: left;
-    padding: 13px 16px; background: #fff; border: 1px solid var(--paper-line); border-radius: 14px;
+    padding: 13px 16px; background: #fff; border: 1px solid var(--paper-line); border-radius: var(--radius);
     transition: transform .15s ease; transform: translateX(0); box-sizing: border-box;
   }
   .card-row.shifted { transform: translateX(-80px); }
 
   .icon-btn {
-    width: 40px; border-radius: 10px; background: var(--paper-dim); border: none;
+    width: 40px; border-radius: var(--radius); background: var(--paper-dim); border: none;
     color: var(--ink); opacity: .6; font-size: 14px;
   }
 
@@ -146,12 +146,12 @@
     position: fixed; inset: 0; background: rgba(0,0,0,.4);
     display: flex; align-items: center; justify-content: center; z-index: 50; padding: 24px;
   }
-  .confirm-sheet { width: 100%; max-width: 340px; background: var(--paper); border-radius: 16px; padding: 20px; }
+  .confirm-sheet { width: 100%; max-width: 340px; background: var(--paper); border-radius: var(--radius); padding: 20px; }
   .confirm-title { font-family: var(--font-display); font-size: 17px; font-weight: 700; color: var(--ink); }
   .confirm-body { font-family: var(--font-body); font-size: 13.5px; color: var(--ink); opacity: .7; margin: 8px 0 18px; line-height: 1.5; }
   .confirm-actions { display: flex; gap: 10px; }
   .cancel-btn, .delete-confirm-btn {
-    flex: 1; padding: 10px; border-radius: 10px; border: none; font-family: var(--font-body);
+    flex: 1; padding: 10px; border-radius: var(--radius); border: none; font-family: var(--font-body);
     font-size: 14px; font-weight: 700;
   }
   .cancel-btn { background: var(--paper-dim); color: var(--ink); }

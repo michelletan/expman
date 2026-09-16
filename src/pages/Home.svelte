@@ -189,7 +189,7 @@
   .details-toggle .chev.open { transform: rotate(90deg); }
 
   .details-panel {
-    margin-top: 10px; padding: 12px 14px; border-radius: 10px; background: rgba(255,255,255,.06);
+    margin-top: 10px; padding: 12px 14px; border-radius: var(--radius); background: rgba(255,255,255,.06);
     display: flex; flex-direction: column; gap: 6px;
   }
   .details-row { display: flex; align-items: center; justify-content: space-between; }
@@ -213,7 +213,7 @@
   .budget-row { padding: 0 20px; display: flex; flex-direction: column; gap: 10px; }
   .card-tile {
     width: 100%; display: block; text-align: left; box-sizing: border-box;
-    padding: 13px 16px; background: #fff; border: 1px solid var(--paper-line); border-radius: 14px;
+    padding: 13px 16px; background: #fff; border: 1px solid var(--paper-line); border-radius: var(--radius);
   }
   .tx-list { padding: 0 20px; }
   .empty-state { padding: 40px 24px; text-align: center; color: var(--ink); opacity: .5; font-size: 14px; }

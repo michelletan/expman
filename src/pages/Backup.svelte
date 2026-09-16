@@ -117,7 +117,7 @@
 
   .action-row {
     position: relative; display: block; width: 100%; text-align: left; cursor: pointer;
-    padding: 16px; border-radius: 12px; margin-bottom: 12px; box-sizing: border-box;
+    padding: 16px; border-radius: var(--radius); margin-bottom: 12px; box-sizing: border-box;
     background: var(--paper-dim); border: none;
   }
   .action-title { display: block; font-family: var(--font-body); font-size: 15px; font-weight: 700; color: var(--ink); }
@@ -131,12 +131,12 @@
     position: fixed; inset: 0; background: rgba(0,0,0,.4);
     display: flex; align-items: center; justify-content: center; z-index: 50; padding: 24px;
   }
-  .confirm-sheet { width: 100%; max-width: 340px; background: var(--paper); border-radius: 16px; padding: 20px; }
+  .confirm-sheet { width: 100%; max-width: 340px; background: var(--paper); border-radius: var(--radius); padding: 20px; }
   .confirm-title { font-family: var(--font-display); font-size: 17px; font-weight: 700; color: var(--ink); }
   .confirm-body { font-family: var(--font-body); font-size: 13.5px; color: var(--ink); opacity: .7; margin: 8px 0 18px; line-height: 1.5; }
   .confirm-actions { display: flex; gap: 10px; }
   .cancel-confirm-btn, .delete-confirm-btn {
-    flex: 1; padding: 10px; border-radius: 10px; border: none; font-family: var(--font-body);
+    flex: 1; padding: 10px; border-radius: var(--radius); border: none; font-family: var(--font-body);
     font-size: 14px; font-weight: 700;
   }
   .cancel-confirm-btn { background: var(--paper-dim); color: var(--ink); }

@@ -131,7 +131,7 @@
     color: var(--ink); opacity: .6; margin-bottom: 6px;
   }
   .field input {
-    width: 100%; padding: 12px 14px; border-radius: 10px; border: 1.5px solid var(--paper-line);
+    width: 100%; padding: 12px 14px; border-radius: var(--radius); border: 1.5px solid var(--paper-line);
     background: var(--paper-dim); font-family: var(--font-body); font-size: 15px; color: var(--ink);
     box-sizing: border-box;
   }
@@ -140,16 +140,16 @@
   .target-list { display: flex; flex-direction: column; gap: 8px; }
   .target-row { display: flex; gap: 6px; }
   .target-row select {
-    flex: 1.2; min-width: 0; padding: 10px; border-radius: 8px; border: 1.5px solid var(--paper-line);
+    flex: 1.2; min-width: 0; padding: 10px; border-radius: var(--radius); border: 1.5px solid var(--paper-line);
     background: var(--paper-dim); font-family: var(--font-body); font-size: 13.5px; color: var(--ink);
   }
   .target-row input {
-    flex: 1; min-width: 0; padding: 10px; border-radius: 8px; border: 1.5px solid var(--paper-line);
+    flex: 1; min-width: 0; padding: 10px; border-radius: var(--radius); border: 1.5px solid var(--paper-line);
     background: var(--paper-dim); font-family: var(--font-body); font-size: 13.5px; color: var(--ink);
     box-sizing: border-box;
   }
   .remove-btn {
-    width: 32px; border-radius: 8px; background: var(--paper-dim); border: 1.5px solid var(--paper-line);
+    width: 32px; border-radius: var(--radius); background: var(--paper-dim); border: 1.5px solid var(--paper-line);
     color: var(--ink); opacity: .6; font-size: 16px;
   }
   .add-target-btn {
@@ -159,7 +159,7 @@
   .add-target-btn:disabled { opacity: .4; }
 
   .delete-btn {
-    display: block; width: 100%; padding: 12px; margin-top: 24px; border-radius: 10px; border: none;
+    display: block; width: 100%; padding: 12px; margin-top: 24px; border-radius: var(--radius); border: none;
     background: rgba(181,75,59,.12); color: var(--rust); font-family: var(--font-body);
     font-size: 14px; font-weight: 700;
   }
@@ -168,12 +168,12 @@
     position: fixed; inset: 0; background: rgba(0,0,0,.4);
     display: flex; align-items: center; justify-content: center; z-index: 50; padding: 24px;
   }
-  .confirm-sheet { width: 100%; max-width: 340px; background: var(--paper); border-radius: 16px; padding: 20px; }
+  .confirm-sheet { width: 100%; max-width: 340px; background: var(--paper); border-radius: var(--radius); padding: 20px; }
   .confirm-title { font-family: var(--font-display); font-size: 17px; font-weight: 700; color: var(--ink); }
   .confirm-body { font-family: var(--font-body); font-size: 13.5px; color: var(--ink); opacity: .7; margin: 8px 0 18px; line-height: 1.5; }
   .confirm-actions { display: flex; gap: 10px; }
   .cancel-confirm-btn, .delete-confirm-btn {
-    flex: 1; padding: 10px; border-radius: 10px; border: none; font-family: var(--font-body);
+    flex: 1; padding: 10px; border-radius: var(--radius); border: none; font-family: var(--font-body);
     font-size: 14px; font-weight: 700;
   }
   .cancel-confirm-btn { background: var(--paper-dim); color: var(--ink); }

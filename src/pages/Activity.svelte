@@ -194,14 +194,14 @@
   .content { background: var(--paper); min-height: 100vh; padding: 16px 20px calc(66px + env(safe-area-inset-bottom) + 16px); }
 
   .search {
-    width: 100%; padding: 10px 14px; border-radius: 10px; border: 1.5px solid var(--paper-line);
+    width: 100%; padding: 10px 14px; border-radius: var(--radius); border: 1.5px solid var(--paper-line);
     background: var(--paper-dim); font-family: var(--font-body); font-size: 14px; color: var(--ink);
     box-sizing: border-box; margin-bottom: 12px;
   }
 
   .view-toggle { display: flex; gap: 8px; margin-bottom: 10px; }
   .view-toggle button {
-    flex: 1; padding: 8px; border-radius: 10px; border: 1.5px solid var(--paper-line);
+    flex: 1; padding: 8px; border-radius: var(--radius); border: 1.5px solid var(--paper-line);
     background: var(--paper-dim); font-family: var(--font-body); font-size: 13px; font-weight: 700;
     color: var(--ink); opacity: .6;
   }
@@ -219,7 +219,7 @@
   .cat-totals { display: flex; flex-direction: column; gap: 8px; margin-top: 4px; }
   .cat-total-row {
     display: flex; align-items: center; justify-content: space-between;
-    padding: 13px 16px; border-radius: 12px; background: var(--paper-dim); border: none;
+    padding: 13px 16px; border-radius: var(--radius); background: var(--paper-dim); border: none;
     font-family: var(--font-body);
   }
   .cat-name { font-size: 14.5px; font-weight: 600; color: var(--ink); }
@@ -229,7 +229,7 @@
     position: fixed; inset: 0; background: rgba(0,0,0,.4);
     display: flex; align-items: center; justify-content: center; z-index: 50; padding: 24px;
   }
-  .picker-sheet { width: 100%; max-width: 340px; background: var(--paper); border-radius: 16px; padding: 20px; }
+  .picker-sheet { width: 100%; max-width: 340px; background: var(--paper); border-radius: var(--radius); padding: 20px; }
   .picker-year-nav {
     display: flex; align-items: center; justify-content: center; gap: 20px; margin-bottom: 16px;
     font-family: var(--font-display); font-size: 16px; font-weight: 700; color: var(--ink);
@@ -237,7 +237,7 @@
   .picker-year-nav button { background: none; border: none; color: var(--ink); font-size: 18px; padding: 2px 8px; }
   .picker-month-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
   .picker-month-btn {
-    padding: 12px 0; border-radius: 10px; border: none; background: var(--paper-dim);
+    padding: 12px 0; border-radius: var(--radius); border: none; background: var(--paper-dim);
     font-family: var(--font-body); font-size: 13.5px; font-weight: 600; color: var(--ink);
   }
   .picker-month-btn.selected { background: var(--accent); color: var(--accent-ink); font-weight: 700; }

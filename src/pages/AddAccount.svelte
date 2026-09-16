@@ -71,7 +71,7 @@
     color: var(--ink); opacity: .6; margin-bottom: 6px;
   }
   .field input {
-    width: 100%; padding: 12px 14px; border-radius: 10px; border: 1.5px solid var(--paper-line);
+    width: 100%; padding: 12px 14px; border-radius: var(--radius); border: 1.5px solid var(--paper-line);
     background: var(--paper-dim); font-family: var(--font-body); font-size: 15px; color: var(--ink);
     box-sizing: border-box;
   }

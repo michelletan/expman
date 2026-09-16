@@ -1,6 +1,6 @@
 <script>
   import { onMount } from 'svelte';
-  import { openDB, ensureDefaultAccount, ensureDefaultCategories, ensureCategoryOrdering, materializeAllRecurring, getAccounts } from './lib/data/db.js';
+  import { openDB, ensureDefaultAccount, ensureDefaultCategories, ensureCategoryOrdering, materializeAllRecurring, getAccounts, getMeta } from './lib/data/db.js';
   import Home from './pages/Home.svelte';
   import Settings from './pages/Settings.svelte';
   import Accounts from './pages/Accounts.svelte';
@@ -17,6 +17,7 @@
   import AddEditBudget from './pages/AddEditBudget.svelte';
   import Backup from './pages/Backup.svelte';
   import Reports from './pages/Reports.svelte';
+  import Themes from './pages/Themes.svelte';
   import TabBar from './lib/components/TabBar.svelte';
 
   // Top-level tabs plus the Settings > {Accounts > Add Account,
@@ -67,8 +68,15 @@
   const TAB_FOR_SCREEN = {
     Home: 'Home', Activity: 'Activity', Reports: 'Reports',
     Settings: 'Settings', Accounts: 'Settings', AddAccount: 'Settings', Categories: 'Settings',
-    Cards: 'Settings', AddEditCard: 'Settings', Backup: 'Settings'
+    Cards: 'Settings', AddEditCard: 'Settings', Backup: 'Settings', Themes: 'Settings'
   };
+
+  function applyTheme(id) {
+    const shell = /** @type {HTMLElement} */ (document.getElementById('app-shell'));
+    shell.setAttribute('data-theme', id);
+    const ink = getComputedStyle(shell).getPropertyValue('--ink').trim();
+    /** @type {HTMLMetaElement} */ (document.querySelector('meta[name="theme-color"]')).setAttribute('content', ink);
+  }
 
   async function refreshAccounts() {
     accounts = await getAccounts();
@@ -82,6 +90,7 @@
     await ensureCategoryOrdering(); // normalizes order/color/isDeleted before anything reads categories
     await materializeAllRecurring();
     await refreshAccounts();
+    applyTheme((await getMeta('theme')) ?? 'midnight');
     ready = true;
   });
 
@@ -244,6 +253,7 @@
           onOpenRecurring={openRecurring}
           onOpenBudgets={openBudgets}
           onOpenBackup={() => screen = 'Backup'}
+          onOpenTheme={() => screen = 'Themes'}
         />
       {:else if screen === 'Accounts'}
         <Accounts
@@ -268,6 +278,8 @@
         <CardDetails cardId={viewingCardId} onBack={() => screen = cardDetailsReturnTo} />
       {:else if screen === 'Backup'}
         <Backup onBack={backToSettings} onImported={() => screen = 'Home'} />
+      {:else if screen === 'Themes'}
+        <Themes onBack={backToSettings} onApplied={applyTheme} />
       {/if}
     </div>
     <TabBar

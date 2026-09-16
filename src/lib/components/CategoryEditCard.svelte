@@ -42,18 +42,18 @@
 </div>
 
 <style>
-  .edit-card { background: var(--paper-dim); border-radius: 12px; padding: 12px; margin-bottom: 8px; }
+  .edit-card { background: var(--paper-dim); border-radius: var(--radius); padding: 12px; margin-bottom: 8px; }
   .edit-row { display: flex; gap: 6px; margin-bottom: 10px; }
   .edit-row input {
-    flex: 1; min-width: 0; padding: 10px 12px; border-radius: 8px; border: 1.5px solid var(--paper-line);
+    flex: 1; min-width: 0; padding: 10px 12px; border-radius: var(--radius); border: 1.5px solid var(--paper-line);
     background: var(--paper); font-family: var(--font-body); font-size: 14px; color: var(--ink);
   }
   .edit-row select {
-    padding: 10px; border-radius: 8px; border: 1.5px solid var(--paper-line);
+    padding: 10px; border-radius: var(--radius); border: 1.5px solid var(--paper-line);
     background: var(--paper); font-family: var(--font-body); font-size: 13px; color: var(--ink);
   }
   .icon-btn {
-    width: 40px; border-radius: 10px; background: var(--paper-dim); border: none;
+    width: 40px; border-radius: var(--radius); background: var(--paper-dim); border: none;
     color: var(--ink); opacity: .6; font-size: 14px;
   }
   .icon-btn.save-icon { background: var(--accent); color: var(--accent-ink); opacity: 1; }
@@ -69,11 +69,11 @@
   .subcat-edit-list { display: flex; flex-direction: column; gap: 6px; margin-bottom: 10px; }
   .subcat-edit-row { display: flex; gap: 6px; }
   .subcat-edit-row input {
-    flex: 1; padding: 8px 10px; border-radius: 8px; border: 1.5px solid var(--paper-line);
+    flex: 1; padding: 8px 10px; border-radius: var(--radius); border: 1.5px solid var(--paper-line);
     background: var(--paper); font-family: var(--font-body); font-size: 13px; color: var(--ink);
   }
   .remove-sub-btn {
-    width: 32px; border-radius: 8px; background: var(--paper); border: 1.5px solid var(--paper-line);
+    width: 32px; border-radius: var(--radius); background: var(--paper); border: 1.5px solid var(--paper-line);
     color: var(--ink); opacity: .6; font-size: 16px;
   }
   .add-sub-btn {
@@ -82,7 +82,7 @@
   }
 
   .delete-btn, .cancel-btn {
-    display: block; width: 100%; padding: 9px; border-radius: 8px; border: none;
+    display: block; width: 100%; padding: 9px; border-radius: var(--radius); border: none;
     font-family: var(--font-body); font-size: 13px; font-weight: 700; margin-top: 6px;
   }
   .delete-btn { background: rgba(181,75,59,.12); color: var(--rust); }

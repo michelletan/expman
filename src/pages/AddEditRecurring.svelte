@@ -351,7 +351,7 @@
 
   .type-toggle { display: flex; gap: 8px; margin-bottom: 20px; }
   .type-btn {
-    flex: 1; padding: 10px; border-radius: 10px; border: 1.5px solid var(--paper-line);
+    flex: 1; padding: 10px; border-radius: var(--radius); border: 1.5px solid var(--paper-line);
     background: var(--paper-dim); font-family: var(--font-body); font-size: 14px; font-weight: 700;
     color: var(--ink); opacity: .6;
   }
@@ -363,7 +363,7 @@
     color: var(--ink); opacity: .6; margin-bottom: 6px;
   }
   .field input, .field select {
-    width: 100%; padding: 12px 14px; border-radius: 10px; border: 1.5px solid var(--paper-line);
+    width: 100%; padding: 12px 14px; border-radius: var(--radius); border: 1.5px solid var(--paper-line);
     background: var(--paper-dim); font-family: var(--font-body); font-size: 15px; color: var(--ink);
     box-sizing: border-box;
   }
@@ -371,14 +371,14 @@
 
   .picker-row {
     display: block; width: 100%; text-align: left; margin-bottom: 16px; padding: 12px 14px;
-    border-radius: 10px; border: 1.5px solid var(--paper-line); background: var(--paper-dim);
+    border-radius: var(--radius); border: 1.5px solid var(--paper-line); background: var(--paper-dim);
     box-sizing: border-box;
   }
   .picker-value { display: block; font-family: var(--font-body); font-size: 15px; color: var(--ink); margin-top: 2px; }
 
   .end-mode-toggle { display: flex; gap: 6px; }
   .end-mode-btn {
-    flex: 1; padding: 10px 4px; border-radius: 10px; border: 1.5px solid var(--paper-line);
+    flex: 1; padding: 10px 4px; border-radius: var(--radius); border: 1.5px solid var(--paper-line);
     background: var(--paper-dim); font-family: var(--font-body); font-size: 12.5px; font-weight: 700;
     color: var(--ink); opacity: .6;
   }
@@ -386,7 +386,7 @@
 
   .rule-actions { display: flex; gap: 10px; margin-top: 24px; }
   .cancel-btn, .delete-btn {
-    flex: 1; padding: 12px; border-radius: 10px; border: none; font-family: var(--font-body);
+    flex: 1; padding: 12px; border-radius: var(--radius); border: none; font-family: var(--font-body);
     font-size: 14px; font-weight: 700;
   }
   .cancel-btn { background: var(--paper-dim); color: var(--ink); }
@@ -396,12 +396,12 @@
     position: fixed; inset: 0; background: rgba(0,0,0,.4);
     display: flex; align-items: center; justify-content: center; z-index: 50; padding: 24px;
   }
-  .confirm-sheet { width: 100%; max-width: 340px; background: var(--paper); border-radius: 16px; padding: 20px; }
+  .confirm-sheet { width: 100%; max-width: 340px; background: var(--paper); border-radius: var(--radius); padding: 20px; }
   .confirm-title { font-family: var(--font-display); font-size: 17px; font-weight: 700; color: var(--ink); }
   .confirm-body { font-family: var(--font-body); font-size: 13.5px; color: var(--ink); opacity: .7; margin: 8px 0 18px; line-height: 1.5; }
   .confirm-actions { display: flex; gap: 10px; }
   .cancel-confirm-btn, .delete-confirm-btn {
-    flex: 1; padding: 10px; border-radius: 10px; border: none; font-family: var(--font-body);
+    flex: 1; padding: 10px; border-radius: var(--radius); border: none; font-family: var(--font-body);
     font-size: 14px; font-weight: 700;
   }
   .cancel-confirm-btn { background: var(--paper-dim); color: var(--ink); }
@@ -409,7 +409,7 @@
 
   .confirm-actions-col { display: flex; flex-direction: column; gap: 10px; }
   .primary-btn, .secondary-btn {
-    padding: 12px; border-radius: 10px; border: none; font-family: var(--font-body);
+    padding: 12px; border-radius: var(--radius); border: none; font-family: var(--font-body);
     font-size: 14px; font-weight: 700;
   }
   .primary-btn { background: var(--accent); color: var(--accent-ink); }

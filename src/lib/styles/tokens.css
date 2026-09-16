@@ -1,9 +1,10 @@
 /*
   DESIGN TOKENS
   -------------
-  Ported straight from the current app's css/theme.css. This is the
-  ONE file every theme (and future component) reads its colors from —
-  add a new theme by adding another [data-theme="..."] block here.
+  This is the ONE file every theme (and every component) reads its
+  colors/fonts/radius from — add a new theme by adding another
+  [data-theme="..."] block here (see specs/themes.md for the full
+  rationale behind each theme's choices).
 */
 
 :root {
@@ -14,8 +15,9 @@
   --paper-line: #DDD0AE;
   --accent: #C99A3B;
   --accent-ink: #1C2333;
+  --radius: 14px;
 
-  /* Semantic — fixed across all themes */
+  /* Semantic — fixed across all themes (specs/themes.md requirement 9) */
   --green: #3F7D58;
   --rust: #B54B3B;
 
@@ -24,29 +26,38 @@
   --font-body: 'Inter', system-ui, sans-serif;
 }
 
-[data-theme="forest"] {
-  --ink: #1F2B26;
-  --paper: #EEF3EF;
-  --paper-dim: #DEE7E1;
-  --paper-line: #C9D6CD;
-  --accent: #2C7A7B;
-  --accent-ink: #FFFFFF;
+[data-theme="journal"] {
+  --ink: #2B2018;
+  --paper: #F8EFDD;
+  --paper-dim: #EFE2C8;
+  --paper-line: #DCC9A0;
+  --accent: #7C2D3A;
+  --accent-ink: #F8EFDD;
+  --radius: 10px;
+  --font-display: 'Lora', Georgia, serif;
+  --font-body: 'Source Serif 4', Georgia, serif;
 }
 
-[data-theme="plum"] {
-  --ink: #2B2138;
-  --paper: #F6EFF3;
-  --paper-dim: #E9DEE6;
-  --paper-line: #D8C7D4;
-  --accent: #8C5A82;
+[data-theme="ledger"] {
+  --ink: #1A1A1A;
+  --paper: #F1F5EE;
+  --paper-dim: #E1EADB;
+  --paper-line: #BFD3B8;
+  --accent: #1F4E79;
   --accent-ink: #FFFFFF;
+  --radius: 2px;
+  --font-display: 'IBM Plex Mono', 'Courier New', monospace;
+  --font-body: 'IBM Plex Mono', 'Courier New', monospace;
 }
 
-[data-theme="harbor"] {
-  --ink: #16324F;
-  --paper: #EEF5F7;
-  --paper-dim: #DCEAEE;
-  --paper-line: #C3DCE3;
-  --accent: #2E86AB;
+[data-theme="meadow"] {
+  --ink: #1B3A2B;
+  --paper: #F0FBF4;
+  --paper-dim: #DFF3E6;
+  --paper-line: #BCE6CB;
+  --accent: #37B24D;
   --accent-ink: #FFFFFF;
+  --radius: 22px;
+  --font-display: 'Baloo 2', system-ui, sans-serif;
+  --font-body: 'Nunito', system-ui, sans-serif;
 }

@@ -52,7 +52,7 @@
   }
   .sheet {
     width: 100%; max-width: 480px; max-height: 80vh; background: var(--paper);
-    border-radius: 16px 16px 0 0; padding: 16px 8px max(env(safe-area-inset-bottom), 16px);
+    border-radius: var(--radius) var(--radius) 0 0; padding: 16px 8px max(env(safe-area-inset-bottom), 16px);
     display: flex; flex-direction: column;
   }
   .title {
@@ -62,7 +62,7 @@
   .list { overflow-y: auto; }
   .uncategorised-row, .cat-header, .sub-row {
     display: block; width: 100%; text-align: left; padding: 11px 12px;
-    border-radius: 10px; background: none; border: none;
+    border-radius: var(--radius); background: none; border: none;
     font-family: var(--font-body); color: var(--ink);
   }
   .uncategorised-row { font-weight: 600; font-size: 14px; opacity: .7; }

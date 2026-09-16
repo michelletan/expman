@@ -241,20 +241,20 @@
   .cat-row { display: flex; align-items: stretch; gap: 6px; }
   .cat-main {
     flex: 1; display: flex; align-items: center; justify-content: space-between;
-    padding: 12px 14px; border-radius: 10px; background: var(--paper-dim); border: none;
+    padding: 12px 14px; border-radius: var(--radius); background: var(--paper-dim); border: none;
     font-family: var(--font-body); font-size: 14.5px; font-weight: 700; color: var(--ink);
   }
   .cat-name { display: inline-flex; align-items: center; gap: 8px; }
   .color-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; box-shadow: 0 0 0 1px rgba(0,0,0,.08) inset; }
   .chev { opacity: .4; }
   .icon-btn {
-    width: 40px; border-radius: 10px; background: var(--paper-dim); border: none;
+    width: 40px; border-radius: var(--radius); background: var(--paper-dim); border: none;
     color: var(--ink); opacity: .6; font-size: 14px;
   }
 
   .reorder-btns { display: flex; flex-direction: column; gap: 2px; }
   .reorder-btn {
-    width: 26px; height: 19px; border-radius: 5px; background: var(--paper-dim); border: none;
+    width: 26px; height: 19px; border-radius: var(--radius); background: var(--paper-dim); border: none;
     color: var(--ink); opacity: .55; font-size: 9px; line-height: 1;
   }
   .reorder-btn:disabled { opacity: .2; }
@@ -282,12 +282,12 @@
     position: fixed; inset: 0; background: rgba(0,0,0,.4);
     display: flex; align-items: center; justify-content: center; z-index: 50; padding: 24px;
   }
-  .confirm-sheet { width: 100%; max-width: 340px; background: var(--paper); border-radius: 16px; padding: 20px; }
+  .confirm-sheet { width: 100%; max-width: 340px; background: var(--paper); border-radius: var(--radius); padding: 20px; }
   .confirm-title { font-family: var(--font-display); font-size: 17px; font-weight: 700; color: var(--ink); }
   .confirm-body { font-family: var(--font-body); font-size: 13.5px; color: var(--ink); opacity: .7; margin: 8px 0 18px; line-height: 1.5; }
   .confirm-actions { display: flex; gap: 10px; }
   .cancel-confirm-btn, .delete-confirm-btn {
-    flex: 1; padding: 10px; border-radius: 10px; border: none; font-family: var(--font-body);
+    flex: 1; padding: 10px; border-radius: var(--radius); border: none; font-family: var(--font-body);
     font-size: 14px; font-weight: 700;
   }
   .cancel-confirm-btn { background: var(--paper-dim); color: var(--ink); }

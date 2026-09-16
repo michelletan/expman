@@ -154,7 +154,7 @@
   .content { background: var(--paper); min-height: 100vh; padding: 16px 20px 90px; display: flex; flex-direction: column; gap: 14px; }
 
   .card {
-    background: #fff; border: 1px solid var(--paper-line); border-radius: 14px; padding: 16px;
+    background: #fff; border: 1px solid var(--paper-line); border-radius: var(--radius); padding: 16px;
   }
   .card-title { font-family: var(--font-body); font-size: 13px; font-weight: 700; color: var(--ink); opacity: .7; margin-bottom: 12px; }
 

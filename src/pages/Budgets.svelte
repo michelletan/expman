@@ -93,7 +93,7 @@
 
   .totals-row {
     display: flex; justify-content: space-between; background: var(--paper-dim);
-    border-radius: 12px; padding: 12px 16px; margin-bottom: 16px;
+    border-radius: var(--radius); padding: 12px 16px; margin-bottom: 16px;
   }
   .totals-item { display: flex; flex-direction: column; gap: 2px; }
   .totals-label { font-family: var(--font-body); font-size: 11.5px; font-weight: 700; color: var(--ink); opacity: .55; }
@@ -103,7 +103,7 @@
   .row-wrap { display: flex; gap: 8px; align-items: center; }
   .row-wrap :global(.budget-card) { flex: 1; }
   .icon-btn {
-    width: 40px; height: 40px; flex-shrink: 0; border-radius: 10px; background: var(--paper-dim); border: none;
+    width: 40px; height: 40px; flex-shrink: 0; border-radius: var(--radius); background: var(--paper-dim); border: none;
     color: var(--ink); opacity: .6; font-size: 14px;
   }
 
