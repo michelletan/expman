@@ -1,6 +1,6 @@
 <script>
   import { onMount } from 'svelte';
-  import { getRecurringRules } from '../lib/data/db.js';
+  import { getRecurringRules, nthOccurrenceDate } from '../lib/data/db.js';
   import { fmtMoney, fmtDateShort } from '../lib/data/format.js';
 
   let { onBack, onAdd, onEdit } = $props();
@@ -12,10 +12,18 @@
 
   onMount(load);
 
+  // The date of a completed rule's own last real occurrence (or its
+  // startDate, for one that ended before ever materializing anything) —
+  // lets Completed sort most-recently-ended first, symmetric with
+  // Upcoming's soonest-next-due-first above.
+  function lastOccurrenceDate(rule) {
+    return rule.materializedCount > 0 ? nthOccurrenceDate(rule, rule.materializedCount - 1) : rule.startDate;
+  }
+
   async function load() {
     const rules = await getRecurringRules();
     upcoming = rules.filter(r => r.active).sort((a, b) => (a.nextDueDate || '').localeCompare(b.nextDueDate || ''));
-    completed = rules.filter(r => !r.active);
+    completed = rules.filter(r => !r.active).sort((a, b) => lastOccurrenceDate(b).localeCompare(lastOccurrenceDate(a)));
   }
 </script>
 
@@ -49,7 +57,7 @@
           <button class="rule-row" onclick={() => onEdit(rule.id)}>
             <div class="rule-main">
               <div class="rule-desc">{rule.description || 'Untitled'}</div>
-              <div class="rule-meta">{FREQUENCY_LABEL[rule.frequency]}</div>
+              <div class="rule-meta">{FREQUENCY_LABEL[rule.frequency]} · ended {fmtDateShort(lastOccurrenceDate(rule))}</div>
             </div>
             <div class="rule-amount" class:income={rule.type === 'income'}>{fmtMoney(rule.amount)}</div>
           </button>
@@ -70,7 +78,7 @@
     background: none; border: none; color: var(--paper); font-family: var(--font-body);
     font-size: 14px; font-weight: 600;
   }
-  .content { background: var(--paper); min-height: 100vh; padding: 16px 20px 90px; }
+  .content { background: var(--paper); min-height: 100vh; padding: 16px 20px calc(66px + env(safe-area-inset-bottom) + 24px); }
 
   .section-label { font-family: var(--font-body); font-size: 13px; font-weight: 700; color: var(--ink); opacity: .6; margin: 4px 0 8px; }
   .section-label:not(:first-child) { margin-top: 22px; }

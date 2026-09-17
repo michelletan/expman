@@ -180,7 +180,7 @@
   }
   .save-btn:disabled { opacity: .4; }
 
-  .content { background: var(--paper); min-height: 100vh; padding: 20px 20px 90px; }
+  .content { background: var(--paper); min-height: 100vh; padding: 20px 20px calc(66px + env(safe-area-inset-bottom) + 24px); }
 
   .field { display: block; margin-bottom: 16px; }
   .field-label {

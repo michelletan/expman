@@ -169,7 +169,7 @@
   .month-nav button { background: none; border: none; color: var(--paper); font-size: 16px; padding: 2px 6px; }
   .month-label { min-width: 120px; text-align: center; }
 
-  .content { background: var(--paper); min-height: 100vh; padding: 16px 20px 90px; display: flex; flex-direction: column; gap: 14px; }
+  .content { background: var(--paper); min-height: 100vh; padding: 16px 20px calc(66px + env(safe-area-inset-bottom) + 24px); display: flex; flex-direction: column; gap: 14px; }
 
   .card {
     background: #fff; border: 1px solid var(--paper-line); border-radius: var(--radius); padding: 16px;

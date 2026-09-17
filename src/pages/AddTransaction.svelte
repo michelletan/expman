@@ -150,41 +150,6 @@
       <button class="type-btn" class:active={type === 'income'} onclick={() => setType('income')}>Income</button>
     </div>
 
-    {#each lines as line, i (i)}
-      {#if lines.length > 1}
-        <div class="line-header">
-          <span class="line-label">Item {i + 1}</span>
-          <button class="remove-line-btn" onclick={() => removeLine(i)}>Remove</button>
-        </div>
-      {/if}
-
-      <label class="field">
-        <span class="field-label">Amount</span>
-        <input type="number" step="0.01" min="0" bind:value={line.amount} placeholder="0.00" />
-      </label>
-
-      <label class="field">
-        <span class="field-label">Description</span>
-        <input type="text" bind:value={line.description} placeholder="Optional" />
-      </label>
-
-      <button class="picker-row" onclick={() => openCategoryPicker(i)}>
-        <span class="field-label">Category</span>
-        <span class="picker-value">{line.categoryLabel}</span>
-      </button>
-    {/each}
-
-    {#if !transactionId}
-      <button class="add-line-btn" onclick={addLine}>+ Add another line</button>
-    {/if}
-
-    {#if lines.length > 1}
-      <div class="total-row">
-        <span>Total</span>
-        <span class="total-amount">{fmtMoney(total)}</span>
-      </div>
-    {/if}
-
     <label class="field">
       <span class="field-label">Account</span>
       <select bind:value={accountId}>
@@ -199,11 +164,46 @@
       <input type="date" bind:value={date} />
     </label>
 
-    {#if type === 'expense'}
-      <button class="picker-row" onclick={() => paymentPickerOpen = true}>
-        <span class="field-label">Payment method</span>
-        <span class="picker-value">{paymentLabel}</span>
-      </button>
+    {#each lines as line, i (i)}
+      {#if lines.length > 1}
+        <div class="line-header">
+          <span class="line-label">Item {i + 1}</span>
+          <button class="remove-line-btn" onclick={() => removeLine(i)}>Remove</button>
+        </div>
+      {/if}
+
+      <label class="field">
+        <span class="field-label">Amount</span>
+        <input type="number" step="0.01" min="0" bind:value={line.amount} placeholder="0.00" />
+      </label>
+
+      {#if i === 0 && type === 'expense'}
+        <div class="field">
+          <span class="field-label">Payment method</span>
+          <button class="picker-row" onclick={() => paymentPickerOpen = true}>{paymentLabel}</button>
+        </div>
+      {/if}
+
+      <div class="field">
+        <span class="field-label">Category</span>
+        <button class="picker-row" onclick={() => openCategoryPicker(i)}>{line.categoryLabel}</button>
+      </div>
+
+      <label class="field">
+        <span class="field-label">Description</span>
+        <input type="text" bind:value={line.description} placeholder="Optional" />
+      </label>
+    {/each}
+
+    {#if !transactionId}
+      <button class="add-line-btn" onclick={addLine}>+ Add another line</button>
+    {/if}
+
+    {#if lines.length > 1}
+      <div class="total-row">
+        <span>Total</span>
+        <span class="total-amount">{fmtMoney(total)}</span>
+      </div>
     {/if}
 
     {#if transactionId}
@@ -246,7 +246,7 @@
   }
   .save-btn:disabled { opacity: .4; }
 
-  .content { background: var(--paper); min-height: 100vh; padding: 20px 20px 90px; }
+  .content { background: var(--paper); min-height: 100vh; padding: 20px 20px calc(66px + env(safe-area-inset-bottom) + 24px); }
 
   .type-toggle { display: flex; gap: 8px; margin-bottom: 20px; }
   .type-btn {
@@ -275,11 +275,10 @@
   }
 
   .picker-row {
-    display: block; width: 100%; text-align: left; margin-bottom: 16px; padding: 12px 14px;
+    display: block; width: 100%; text-align: left; padding: 12px 14px;
     border-radius: var(--radius); border: 1.5px solid var(--paper-line); background: var(--paper-dim);
-    box-sizing: border-box;
+    font-family: var(--font-body); font-size: 15px; color: var(--ink); box-sizing: border-box;
   }
-  .picker-value { display: block; font-family: var(--font-body); font-size: 15px; color: var(--ink); margin-top: 2px; }
 
   .add-line-btn {
     display: block; width: 100%; padding: 12px; margin-bottom: 16px; border-radius: var(--radius);

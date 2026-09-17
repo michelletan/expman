@@ -63,7 +63,7 @@
   .title { font-size: 18px; font-weight: 700; font-family: var(--font-display); }
   .back-btn { background: none; border: none; color: var(--paper); font-family: var(--font-body); font-size: 14px; font-weight: 600; }
   .spacer { width: 40px; }
-  .content { background: var(--paper); min-height: 100vh; padding: 16px 20px 90px; display: flex; flex-direction: column; gap: 10px; }
+  .content { background: var(--paper); min-height: 100vh; padding: 16px 20px calc(66px + env(safe-area-inset-bottom) + 24px); display: flex; flex-direction: column; gap: 10px; }
 
   .swatch {
     position: relative; display: flex; align-items: center; gap: 14px;

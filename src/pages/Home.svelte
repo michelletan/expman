@@ -65,7 +65,11 @@
     topCallout = callouts[0] ?? null;
     recent = recentTxns;
 
-    cardRows = await Promise.all(cards.map(async card => {
+    // A card with nothing to track (no category targets, no minimum
+    // spend) has nothing "at a glance" to show here — it still lists
+    // fully on the Cards screen itself, just not on this digest.
+    const trackedCards = cards.filter(card => card.targetSpend.length || card.minSpend != null);
+    cardRows = await Promise.all(trackedCards.map(async card => {
       const period = getCardPeriod(card.resetDate);
       const { total } = await getCardSpendSummary(card.id, period);
       return {
@@ -198,7 +202,7 @@
     background: rgba(255,255,255,.08); color: #C7CCDC; border: none; font-family: var(--font-body);
   }
 
-  .content { background: var(--paper); min-height: 100vh; padding-bottom: 90px; }
+  .content { background: var(--paper); min-height: 100vh; padding-bottom: calc(66px + env(safe-area-inset-bottom) + 24px); }
 
   .balance-hero { background: var(--ink); color: var(--paper); padding: 6px 20px 20px; }
   .label { font-size: 13px; color: #9BA3BC; font-weight: 500; }

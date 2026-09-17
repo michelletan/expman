@@ -1,16 +1,25 @@
 <script>
   import { fmtMoney } from '../data/format.js';
 
-  // Shared base for BudgetCard and CardRow — both are "spent / total,
-  // with a progress bar" tiles that only differ in what goes on the
-  // label line. Content-only (no wrapping button), so callers stay free
-  // to wrap it in whatever interaction they need (a plain button, a
-  // swipeable row, etc.) — same reasoning CardRow already had before
-  // this refactor.
-  let { title, subtitle = '', subtitleWarn = false, tag = '', spent, total } = $props();
+  // Shared base for BudgetCard/CardRow (a cap — stay under `total`) and
+  // GoalCard/Card Details' min-spend (a goal — reach `total`). Content-
+  // only (no wrapping button), so callers stay free to wrap it in
+  // whatever interaction they need (a plain button, a swipeable row,
+  // etc.) — same reasoning CardRow already had before this refactor.
+  //
+  // variant picks what "filling the bar" means: 'cap' (default) turns
+  // rust near/over the limit — bad news, spending too much. 'goal' turns
+  // green once reached — good news, hit the target. Using the same rust
+  // for both used to make a met savings goal or min-spend look like a
+  // warning (caught live) — see specs/savings-goals.md, specs/cards.md.
+  let { title, subtitle = '', subtitleWarn = false, tag = '', spent, total, variant = 'cap' } = $props();
 
   const pct = $derived(total > 0 ? Math.min(100, Math.round((spent / total) * 100)) : 0);
-  const barColor = $derived(pct >= 90 ? 'var(--rust)' : 'var(--accent)');
+  const barColor = $derived(
+    variant === 'goal'
+      ? (pct >= 100 ? 'var(--green)' : 'var(--accent)')
+      : (pct >= 90 ? 'var(--rust)' : 'var(--accent)')
+  );
 </script>
 
 <div class="top">

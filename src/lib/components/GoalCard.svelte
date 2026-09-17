@@ -21,7 +21,7 @@
 </script>
 
 <button class="goal-card" onclick={() => onOpen()}>
-  <ProgressCard title="Savings goal" spent={clampedNet} total={status.goal} {subtitle} subtitleWarn={status.net < 0} />
+  <ProgressCard title="Savings goal" spent={clampedNet} total={status.goal} {subtitle} subtitleWarn={status.net < 0} variant="goal" />
 </button>
 
 <style>

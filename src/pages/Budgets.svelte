@@ -89,7 +89,7 @@
   .month-nav button { background: none; border: none; color: var(--paper); font-size: 16px; padding: 2px 6px; }
   .month-label { min-width: 120px; text-align: center; }
 
-  .content { background: var(--paper); min-height: 100vh; padding: 16px 20px 90px; }
+  .content { background: var(--paper); min-height: 100vh; padding: 16px 20px calc(66px + env(safe-area-inset-bottom) + 24px); }
 
   .totals-row {
     display: flex; justify-content: space-between; background: var(--paper-dim);
