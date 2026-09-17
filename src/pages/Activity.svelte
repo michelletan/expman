@@ -18,6 +18,17 @@
   let view = $state('date'); // 'date' | 'category'
   let search = $state('');
 
+  // Defaults to oldest-first, matching the user's own habit — applies
+  // to both the month view's Date list and resultsMode's flat list
+  // (Category view isn't date-ordered, so this doesn't apply there).
+  // Both lists are fetched/kept newest-first internally; this only
+  // flips display order, so it never changes which rows are included
+  // (matters for resultsMode's 200-row cap — see searchTransactions).
+  let sortDir = $state('asc'); // 'asc' = oldest first, 'desc' = newest first
+  function toggleSort() {
+    sortDir = sortDir === 'asc' ? 'desc' : 'asc';
+  }
+
   // Tapping the month label opens a jump-to-month/year picker
   // (specs/transactions.md requirement 24) — separate from the ‹ › step
   // buttons either side of it.
@@ -75,6 +86,9 @@
 
   let searchResults = $state([]);
   let searchTotal = $state(0);
+
+  const orderedTransactions = $derived(sortDir === 'asc' ? transactions.slice().reverse() : transactions);
+  const orderedSearchResults = $derived(sortDir === 'asc' ? searchResults.slice().reverse() : searchResults);
 
   function clearFilters() {
     filterCategoryActive = false;
@@ -208,8 +222,9 @@
       {#if searchTotal > searchResults.length}
         <div class="truncate-note">Showing the most recent {searchResults.length} of {searchTotal} matches — narrow your search to see more.</div>
       {/if}
+      <button class="sort-toggle" onclick={toggleSort}>{sortDir === 'asc' ? '↑ Oldest first' : '↓ Newest first'}</button>
       <div class="tx-list">
-        {#each searchResults as transaction (transaction.id)}
+        {#each orderedSearchResults as transaction (transaction.id)}
           <TransactionRow {transaction} onOpen={onOpenTransaction} />
         {:else}
           <div class="empty-state">No matching transactions.</div>
@@ -226,8 +241,9 @@
       {/if}
 
       {#if view === 'date'}
+        <button class="sort-toggle" onclick={toggleSort}>{sortDir === 'asc' ? '↑ Oldest first' : '↓ Newest first'}</button>
         <div class="tx-list">
-          {#each transactions as transaction (transaction.id)}
+          {#each orderedTransactions as transaction (transaction.id)}
             <TransactionRow {transaction} onOpen={onOpenTransaction} />
           {:else}
             <div class="empty-state">No transactions this month.</div>
@@ -354,6 +370,10 @@
     font-size: 12.5px; font-weight: 700; color: var(--ink);
   }
 
+  .sort-toggle {
+    display: block; margin: 8px 0 4px auto; background: none; border: none;
+    color: var(--ink); opacity: .6; font-family: var(--font-body); font-size: 12.5px; font-weight: 700;
+  }
   .tx-list { margin-top: 4px; }
   .empty-state { padding: 40px 0; text-align: center; color: var(--ink); opacity: .5; font-size: 14px; }
 
