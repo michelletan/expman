@@ -11,7 +11,10 @@
   // than hidden, so the tree stays browsable for picking a sibling that
   // isn't taken. allowUncategorised hides the "Uncategorised" option
   // entirely for callers (like Budgets) where it's not a valid choice.
-  let { type, onSelect, onClose, disabledIds = [], allowUncategorised = true } = $props();
+  // type is optional (omitted/null shows every category regardless of
+  // type — Activity's Filters sheet isn't scoped to one transaction's
+  // type the way Add Transaction is).
+  let { type = null, onSelect, onClose, disabledIds = [], allowUncategorised = true } = $props();
 
   let categories = $state([]);
 

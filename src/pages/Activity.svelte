@@ -1,9 +1,10 @@
 <script>
   import { untrack } from 'svelte';
   import { getTransactionsForMonth, getAll, groupTransactionsByCategory } from '../lib/data/db.js';
-  import { resolveTransactionLabels } from '../lib/data/transactions.js';
+  import { resolveTransactionLabels, searchTransactions } from '../lib/data/transactions.js';
   import { fmtMoney, fmtMonthLabel, shiftYearMonth, currentYearMonth, MONTH_SHORT } from '../lib/data/format.js';
   import TransactionRow from '../lib/components/TransactionRow.svelte';
+  import CategoryPicker from '../lib/components/CategoryPicker.svelte';
 
   // Scoped to the app-wide selected account (specs/transactions.md
   // requirement 22 — the same account Home is showing).
@@ -46,6 +47,60 @@
   let transactions = $state([]);
   let categoryTotals = $state([]);
 
+  // specs/activity-search-filter.md — a *separate* all-time filter set
+  // from categoryFilterActive/categoryFilter above (requirement 9): that
+  // one stays a month-scoped drill-in (Category view, budget taps); this
+  // one is the new Filters sheet, combined with search text to decide
+  // whether Activity is in resultsMode (all-time, flat) or the normal
+  // month view.
+  let filtersOpen = $state(false);
+  // Separate active flag (not just checking filterCategoryId != null) —
+  // the picker's "Uncategorised" option is itself a real, filterable
+  // choice whose id is null, same reasoning as categoryFilterActive.
+  let filterCategoryActive = $state(false);
+  /** @type {string|null} */
+  let filterCategoryId = $state(null);
+  /** @type {string|null} */
+  let filterSubcategoryId = $state(null);
+  let filterCategoryLabel = $state('');
+  let filterType = $state('all'); // 'all' | 'income' | 'expense'
+  let filterDateFrom = $state('');
+  let filterDateTo = $state('');
+  let categoryFilterPickerOpen = $state(false);
+
+  const filtersActive = $derived(
+    filterCategoryActive || filterType !== 'all' || !!filterDateFrom || !!filterDateTo
+  );
+  const resultsMode = $derived(!!search.trim() || filtersActive);
+
+  let searchResults = $state([]);
+  let searchTotal = $state(0);
+
+  function clearFilters() {
+    filterCategoryActive = false;
+    filterCategoryId = null;
+    filterSubcategoryId = null;
+    filterCategoryLabel = '';
+    filterType = 'all';
+    filterDateFrom = '';
+    filterDateTo = '';
+  }
+
+  function selectFilterCategory(newCategoryId, newSubcategoryId, label) {
+    filterCategoryActive = true;
+    filterCategoryId = newCategoryId;
+    filterSubcategoryId = newSubcategoryId;
+    filterCategoryLabel = label;
+    categoryFilterPickerOpen = false;
+  }
+
+  function clearFilterCategory() {
+    filterCategoryActive = false;
+    filterCategoryId = null;
+    filterSubcategoryId = null;
+    filterCategoryLabel = '';
+  }
+
   // Every reactive input this reads is captured as a plain argument
   // *before* the first await below, inside the effect body — reading
   // them after an await wouldn't be tracked as a dependency. The guard
@@ -55,11 +110,28 @@
   // fresher results with stale ones.
   $effect(() => {
     const guard = { cancelled: false };
-    load(yearMonth, accountId, search, categoryFilterActive, categoryFilter, subcategoryFilter, guard);
+    if (resultsMode) {
+      loadSearchResults(
+        accountId, search, filterCategoryActive, filterCategoryId, filterSubcategoryId,
+        filterType, filterDateFrom, filterDateTo, guard
+      );
+    } else {
+      load(yearMonth, accountId, search, categoryFilterActive, categoryFilter, subcategoryFilter, guard);
+    }
     return () => { guard.cancelled = true; };
   });
 
-  async function load(month, accountId, search, filterActive, filterCategoryId, filterSubcategoryId, guard) {
+  async function loadSearchResults(accId, query, catActive, catId, subId, type, dateFrom, dateTo, guard) {
+    const result = await searchTransactions({
+      accountId: accId, query, categoryActive: catActive, categoryId: catId, subcategoryId: subId,
+      type: type === 'all' ? null : type, dateFrom: dateFrom || null, dateTo: dateTo || null
+    });
+    if (guard.cancelled) return;
+    searchResults = result.rows;
+    searchTotal = result.total;
+  }
+
+  async function load(month, accountId, search, chipActive, chipCategoryId, chipSubcategoryId, guard) {
     const [monthTxns, categories] = await Promise.all([
       getTransactionsForMonth(month, accountId),
       getAll('categories')
@@ -71,17 +143,17 @@
     // directly (cheaper, it already has the row's label to hand), so this
     // only runs for a prop-driven filter (requirement 19) that arrived
     // without one.
-    if (filterActive && !categoryFilterLabel) {
-      const cat = categories.find(c => c.id === filterCategoryId);
-      const sub = filterSubcategoryId ? cat?.subcategories.find(s => s.id === filterSubcategoryId) : null;
+    if (chipActive && !categoryFilterLabel) {
+      const cat = categories.find(c => c.id === chipCategoryId);
+      const sub = chipSubcategoryId ? cat?.subcategories.find(s => s.id === chipSubcategoryId) : null;
       categoryFilterLabel = cat ? (sub ? `${cat.name} / ${sub.name}` : cat.name) : '';
     }
 
     const q = search.trim().toLowerCase();
     const searched = q ? monthTxns.filter(t => (t.description || '').toLowerCase().includes(q)) : monthTxns;
 
-    const dateList = filterActive
-      ? searched.filter(t => (t.categoryId ?? null) === filterCategoryId && (!filterSubcategoryId || t.subcategoryId === filterSubcategoryId))
+    const dateList = chipActive
+      ? searched.filter(t => (t.categoryId ?? null) === chipCategoryId && (!chipSubcategoryId || t.subcategoryId === chipSubcategoryId))
       : searched;
     const sorted = dateList.slice().sort((a, b) => (b.date || '').localeCompare(a.date || '')); // newest first
     const resolved = await resolveTransactionLabels(sorted);
@@ -115,44 +187,64 @@
 <div class="activity">
   <div class="topbar">
     <div class="title">Activity</div>
-    <div class="month-nav">
-      <button onclick={() => yearMonth = shiftYearMonth(yearMonth, -1)} aria-label="Previous month">‹</button>
-      <button class="month-label" onclick={openMonthPicker}>{fmtMonthLabel(yearMonth)}</button>
-      <button onclick={() => yearMonth = shiftYearMonth(yearMonth, 1)} aria-label="Next month">›</button>
-    </div>
+    {#if !resultsMode}
+      <div class="month-nav">
+        <button onclick={() => yearMonth = shiftYearMonth(yearMonth, -1)} aria-label="Previous month">‹</button>
+        <button class="month-label" onclick={openMonthPicker}>{fmtMonthLabel(yearMonth)}</button>
+        <button onclick={() => yearMonth = shiftYearMonth(yearMonth, 1)} aria-label="Next month">›</button>
+      </div>
+    {/if}
   </div>
 
   <div class="content">
-    <input class="search" type="text" bind:value={search} placeholder="Search description…" />
-
-    <div class="view-toggle">
-      <button class:active={view === 'date'} onclick={() => setView('date')}>Date</button>
-      <button class:active={view === 'category'} onclick={() => setView('category')}>Category</button>
+    <div class="search-row">
+      <input class="search" type="text" bind:value={search} placeholder="Search description…" />
+      <button class="filters-btn" onclick={() => filtersOpen = true} aria-label="Filters">
+        ⚙︎{#if filtersActive}<span class="filters-dot"></span>{/if}
+      </button>
     </div>
 
-    {#if view === 'date' && categoryFilterActive}
-      <button class="filter-chip" onclick={clearCategoryFilter}>{categoryFilterLabel} ×</button>
-    {/if}
-
-    {#if view === 'date'}
+    {#if resultsMode}
+      {#if searchTotal > searchResults.length}
+        <div class="truncate-note">Showing the most recent {searchResults.length} of {searchTotal} matches — narrow your search to see more.</div>
+      {/if}
       <div class="tx-list">
-        {#each transactions as transaction (transaction.id)}
+        {#each searchResults as transaction (transaction.id)}
           <TransactionRow {transaction} onOpen={onOpenTransaction} />
         {:else}
-          <div class="empty-state">No transactions this month.</div>
+          <div class="empty-state">No matching transactions.</div>
         {/each}
       </div>
     {:else}
-      <div class="cat-totals">
-        {#each categoryTotals as row (row.categoryId ?? 'uncategorised')}
-          <button class="cat-total-row" onclick={() => drillIntoCategory(row)}>
-            <span class="cat-name">{row.category}</span>
-            <span class="cat-amount">{fmtMoney(row.total)}</span>
-          </button>
-        {:else}
-          <div class="empty-state">No transactions this month.</div>
-        {/each}
+      <div class="view-toggle">
+        <button class:active={view === 'date'} onclick={() => setView('date')}>Date</button>
+        <button class:active={view === 'category'} onclick={() => setView('category')}>Category</button>
       </div>
+
+      {#if view === 'date' && categoryFilterActive}
+        <button class="filter-chip" onclick={clearCategoryFilter}>{categoryFilterLabel} ×</button>
+      {/if}
+
+      {#if view === 'date'}
+        <div class="tx-list">
+          {#each transactions as transaction (transaction.id)}
+            <TransactionRow {transaction} onOpen={onOpenTransaction} />
+          {:else}
+            <div class="empty-state">No transactions this month.</div>
+          {/each}
+        </div>
+      {:else}
+        <div class="cat-totals">
+          {#each categoryTotals as row (row.categoryId ?? 'uncategorised')}
+            <button class="cat-total-row" onclick={() => drillIntoCategory(row)}>
+              <span class="cat-name">{row.category}</span>
+              <span class="cat-amount">{fmtMoney(row.total)}</span>
+            </button>
+          {:else}
+            <div class="empty-state">No transactions this month.</div>
+          {/each}
+        </div>
+      {/if}
     {/if}
   </div>
 </div>
@@ -178,6 +270,44 @@
   </div>
 {/if}
 
+{#if filtersOpen}
+  <div class="backdrop" role="button" tabindex="0" onclick={() => filtersOpen = false} onkeydown={(e) => e.key === 'Escape' && (filtersOpen = false)}>
+    <div class="filters-sheet" role="presentation" onclick={(e) => e.stopPropagation()}>
+      <div class="sheet-title">Filters</div>
+
+      <span class="field-label">Category</span>
+      {#if filterCategoryActive}
+        <button class="filter-chip standalone" onclick={clearFilterCategory}>{filterCategoryLabel} ×</button>
+      {:else}
+        <button class="picker-row" onclick={() => categoryFilterPickerOpen = true}>Any category</button>
+      {/if}
+
+      <span class="field-label">Type</span>
+      <div class="view-toggle">
+        <button class:active={filterType === 'all'} onclick={() => filterType = 'all'}>All</button>
+        <button class:active={filterType === 'income'} onclick={() => filterType = 'income'}>Income</button>
+        <button class:active={filterType === 'expense'} onclick={() => filterType = 'expense'}>Expense</button>
+      </div>
+
+      <span class="field-label">Date range</span>
+      <div class="date-range-row">
+        <input type="date" bind:value={filterDateFrom} />
+        <span class="date-range-sep">–</span>
+        <input type="date" bind:value={filterDateTo} />
+      </div>
+
+      <div class="sheet-actions">
+        <button class="clear-btn" onclick={clearFilters} disabled={!filtersActive}>Clear filters</button>
+        <button class="done-btn" onclick={() => filtersOpen = false}>Done</button>
+      </div>
+    </div>
+  </div>
+{/if}
+
+{#if categoryFilterPickerOpen}
+  <CategoryPicker onSelect={selectFilterCategory} onClose={() => categoryFilterPickerOpen = false} />
+{/if}
+
 <style>
   .topbar {
     background: var(--ink); color: var(--paper);
@@ -193,10 +323,21 @@
 
   .content { background: var(--paper); min-height: 100vh; padding: 16px 20px calc(66px + env(safe-area-inset-bottom) + 16px); }
 
+  .search-row { display: flex; gap: 8px; margin-bottom: 12px; }
   .search {
-    width: 100%; padding: 10px 14px; border-radius: var(--radius); border: 1.5px solid var(--paper-line);
+    flex: 1; min-width: 0; padding: 10px 14px; border-radius: var(--radius); border: 1.5px solid var(--paper-line);
     background: var(--paper-dim); font-family: var(--font-body); font-size: 14px; color: var(--ink);
-    box-sizing: border-box; margin-bottom: 12px;
+    box-sizing: border-box;
+  }
+  .filters-btn {
+    position: relative; width: 42px; flex-shrink: 0; border-radius: var(--radius);
+    border: 1.5px solid var(--paper-line); background: var(--paper-dim); font-size: 16px; color: var(--ink);
+  }
+  .filters-dot {
+    position: absolute; top: 6px; right: 7px; width: 7px; height: 7px; border-radius: 50%; background: var(--accent);
+  }
+  .truncate-note {
+    padding: 8px 2px; font-family: var(--font-body); font-size: 12px; color: var(--ink); opacity: .6; line-height: 1.4;
   }
 
   .view-toggle { display: flex; gap: 8px; margin-bottom: 10px; }
@@ -241,4 +382,36 @@
     font-family: var(--font-body); font-size: 13.5px; font-weight: 600; color: var(--ink);
   }
   .picker-month-btn.selected { background: var(--accent); color: var(--accent-ink); font-weight: 700; }
+
+  .filters-sheet {
+    width: 100%; max-width: 400px; max-height: 85vh; overflow-y: auto;
+    background: var(--paper); border-radius: var(--radius); padding: 20px;
+  }
+  .sheet-title { font-family: var(--font-display); font-size: 17px; font-weight: 700; color: var(--ink); margin-bottom: 16px; }
+  .field-label {
+    display: block; font-family: var(--font-body); font-size: 12.5px; font-weight: 700;
+    color: var(--ink); opacity: .6; margin: 14px 0 6px;
+  }
+  .field-label:first-of-type { margin-top: 0; }
+  .picker-row {
+    display: block; width: 100%; text-align: left; padding: 10px 14px;
+    border-radius: var(--radius); border: 1.5px solid var(--paper-line); background: var(--paper-dim);
+    font-family: var(--font-body); font-size: 14px; color: var(--ink); opacity: .6; box-sizing: border-box;
+  }
+  .filter-chip.standalone { margin: 0; }
+  .date-range-row { display: flex; align-items: center; gap: 8px; }
+  .date-range-row input {
+    flex: 1; min-width: 0; padding: 10px 12px; border-radius: var(--radius); border: 1.5px solid var(--paper-line);
+    background: var(--paper-dim); font-family: var(--font-body); font-size: 13.5px; color: var(--ink);
+    box-sizing: border-box;
+  }
+  .date-range-sep { color: var(--ink); opacity: .5; }
+  .sheet-actions { display: flex; gap: 10px; margin-top: 22px; }
+  .clear-btn, .done-btn {
+    flex: 1; padding: 11px; border-radius: var(--radius); border: none; font-family: var(--font-body);
+    font-size: 14px; font-weight: 700;
+  }
+  .clear-btn { background: var(--paper-dim); color: var(--ink); }
+  .clear-btn:disabled { opacity: .4; }
+  .done-btn { background: var(--accent); color: var(--accent-ink); }
 </style>

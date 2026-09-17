@@ -121,3 +121,35 @@ export async function getSpendingCallouts(yearMonth, accountId) {
 
   return results.sort((a, b) => Math.abs(b.deltaAmount) - Math.abs(a.deltaAmount));
 }
+
+// specs/activity-search-filter.md — description search + category/type/
+// date-range filters, all-time (not month-scoped), combined with AND.
+// Capped at `limit` (requirement 8) — rows beyond it are still counted
+// in `total` so the caller can show a "showing X of Y" note.
+/**
+ * @param {{ accountId?: string|null, query?: string, categoryActive?: boolean, categoryId?: string|null,
+ *   subcategoryId?: string|null, type?: string|null, dateFrom?: string|null, dateTo?: string|null, limit?: number }} params
+ */
+export async function searchTransactions({
+  accountId = null, query = '', categoryActive = false, categoryId = null, subcategoryId = null,
+  type = null, dateFrom = null, dateTo = null, limit = 200
+} = {}) {
+  const all = await getVisibleTransactions();
+  const q = query.trim().toLowerCase();
+
+  const matches = all.filter(t => {
+    if (accountId && t.accountId !== accountId) return false;
+    if (q && !(t.description || '').toLowerCase().includes(q)) return false;
+    // categoryId null legitimately means "Uncategorised" here, so the
+    // filter is gated on categoryActive, not truthiness of categoryId.
+    if (categoryActive && (t.categoryId ?? null) !== categoryId) return false;
+    if (categoryActive && subcategoryId && t.subcategoryId !== subcategoryId) return false;
+    if (type && t.type !== type) return false;
+    if (dateFrom && t.date < dateFrom) return false;
+    if (dateTo && t.date > dateTo) return false;
+    return true;
+  }).sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+
+  const rows = await resolveTransactionLabels(matches.slice(0, limit));
+  return { total: matches.length, rows };
+}

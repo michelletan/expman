@@ -1,6 +1,6 @@
 ## Activity search & filter
 
-**Status:** Drafting
+**Status:** Approved
 
 ### Summary
 Fixes a real bug — Activity's search currently only matches the visible
