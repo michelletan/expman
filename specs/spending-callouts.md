@@ -8,9 +8,10 @@ Surfaces short, data-driven insights like "Food is 42% above your
 category's spend against its own recent history, with no dependency on
 whether a budget exists (confirmed with the user: budget-relative
 pacing/overspend warnings are explicitly out of scope, a separate
-feature for later). Shown as a single compact line on Home (current
-month) and a fuller ranked list on Reports (whichever month is being
-viewed there).
+feature for later). Shown as a ranked list on Reports (whichever month
+is being viewed there). **Amended**: originally also showed a single
+compact line on Home; the user asked for that removed to keep Home's
+balance area simpler — call-outs now live only on Reports.
 
 ### User stories
 - As a user, I want to be told when a category is unusually high or low
@@ -32,16 +33,14 @@ viewed there).
 4. WHEN ranking qualifying categories THE APP SHALL sort by absolute
    dollar deviation (largest real swings first), not percentage alone,
    so a $5→$15 category (200%) doesn't outrank a $400→$600 one (50%).
-5. WHEN Home is shown THE APP SHALL display the single highest-ranked
-   call-out for the current calendar month and the selected account (if
-   any category qualifies), as one compact line.
+5. ~~Home call-out line~~ — removed; call-outs are Reports-only now (see
+   Summary).
 6. WHEN Reports is shown THE APP SHALL display up to 3 ranked call-outs
    for whichever month Reports' own month-nav is currently on, as their
    own card positioned above "Spend by category."
 7. WHEN no category qualifies for a given month/account THE APP SHALL
-   show nothing for this feature — no line on Home, no card on Reports —
-   matching the rest of the app's "nothing to show → show nothing"
-   convention.
+   show nothing for this feature — no card on Reports — matching the
+   rest of the app's "nothing to show → show nothing" convention.
 8. WHEN a category is spending notably less than its average THE APP
    SHALL phrase it positively (e.g. "30% below your average"), not only
    surface overspending warnings.
@@ -54,10 +53,8 @@ viewed there).
   existing per-month category totals, called once for the target month
   and once each for the 3 prior months).
 - Existing, modified:
-  - [Home.svelte](src/pages/Home.svelte) — loads and shows the single
-    top call-out (current month only).
-  - [Reports.svelte](src/pages/Reports.svelte) — new call-out card
-    (up to 3), respecting the page's existing month-nav.
+  - [Reports.svelte](src/pages/Reports.svelte) — call-out card (up to
+    3), respecting the page's existing month-nav.
 
 ### Data model
 - Stores read: `transactions`, `categories` (no new store/fields) — via
@@ -86,12 +83,10 @@ this moves to Approved.
 - [ ] A category within 20% and $20 of its average never shows up.
 - [ ] A category with no spend in the prior 3 months never shows up
       (avoids the divide-by-zero / "new category" case).
-- [ ] Home shows at most 1 line; Reports shows up to 3, ranked by
-      absolute $ deviation.
-- [ ] Reports' call-outs update when its month-nav changes; Home's
-      always reflects the current calendar month.
+- [ ] Reports shows up to 3, ranked by absolute $ deviation, updating
+      when its month-nav changes.
 - [ ] A month/account with no qualifying category shows nothing on
-      either screen.
+      Reports.
 - [ ] Uncategorised spend never appears as a call-out.
 
 ### Notes

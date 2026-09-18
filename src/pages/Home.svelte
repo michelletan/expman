@@ -1,5 +1,5 @@
 <script>
-  import { getRecentTransactions, getHomeSummary, getBudgetStatuses, getSavingsGoalStatus, getSpendingCallouts } from '../lib/data/transactions.js';
+  import { getRecentTransactions, getHomeSummary, getBudgetStatuses, getSavingsGoalStatus } from '../lib/data/transactions.js';
   import { getCards, getCardSpendSummary } from '../lib/data/db.js';
   import { fmtMoney, fmtMoneySigned, fmtMonthLabel, currentYearMonth, getCardPeriod } from '../lib/data/format.js';
   import TransactionRow from '../lib/components/TransactionRow.svelte';
@@ -22,10 +22,6 @@
   // null when the account has no goal set — Home shows nothing for it
   // then (specs/savings-goals.md requirement 6), same as budgets/cards.
   let goalStatus = $state(/** @type {{goal: number, net: number}|null} */ (null));
-  // specs/spending-callouts.md — only the single highest-ranked callout,
-  // for the current calendar month (no month-nav on Home); Reports shows
-  // up to 3 and follows its own month-nav instead.
-  let topCallout = $state(/** @type {{label: string, color: string, over: boolean}|null} */ (null));
   let cardRows = $state([]); // [{ card, period, spend, totalTarget }] — every card, not account-scoped (matches Cards.svelte)
   // Collapsed by default (specs/transactions.md requirement 6, PRD.md).
   let detailsOpen = $state(false);
@@ -48,11 +44,10 @@
   });
 
   async function loadData(id, guard) {
-    const [summary, budgetStatuses, goal, callouts, recentTxns, cards] = await Promise.all([
+    const [summary, budgetStatuses, goal, recentTxns, cards] = await Promise.all([
       getHomeSummary(id),
       getBudgetStatuses(3, id),
       getSavingsGoalStatus(id),
-      getSpendingCallouts(currentYearMonth(), id),
       getRecentTransactions(5, id),
       getCards()
     ]);
@@ -62,7 +57,6 @@
     monthNet = summary.monthSummary.income - summary.monthSummary.expense;
     budgets = budgetStatuses;
     goalStatus = goal;
-    topCallout = callouts[0] ?? null;
     recent = recentTxns;
 
     // A card with nothing to track (no category targets, no minimum
@@ -86,7 +80,6 @@
 </script>
 
 <div class="topbar">
-  <div class="eyebrow">Good to see you</div>
   <div class="account-row">
     <span class="account-name">{currentAccountName}</span>
     {#if accounts.length > 1}
@@ -108,13 +101,6 @@
   <div class="balance-hero">
     <div class="label">Spent this month · {monthLabel}</div>
     <div class="amount">{fmtMoneySigned(monthExpense, 'expense')}</div>
-
-    {#if topCallout}
-      <div class="callout-banner" class:warn={topCallout.over}>
-        <span class="dot" style:background={topCallout.color}></span>
-        {topCallout.label}
-      </div>
-    {/if}
 
     <button class="details-toggle" onclick={() => detailsOpen = !detailsOpen} aria-expanded={detailsOpen}>
       {detailsOpen ? 'Hide' : 'Show'} balance & this month's net
@@ -192,8 +178,7 @@
     background: var(--ink); color: var(--paper);
     padding: max(env(safe-area-inset-top), 16px) 20px 16px;
   }
-  .eyebrow { font-size: 12.5px; color: #9BA3BC; font-weight: 500; }
-  .account-row { display: flex; align-items: center; gap: 10px; margin-top: 6px; }
+  .account-row { display: flex; align-items: center; gap: 10px; }
   .account-name {
     font-family: var(--font-display); font-weight: 600; font-size: 20px; color: var(--paper);
   }
@@ -204,19 +189,12 @@
 
   .content { background: var(--paper); min-height: 100vh; padding-bottom: calc(66px + env(safe-area-inset-bottom) + 24px); }
 
-  .balance-hero { background: var(--ink); color: var(--paper); padding: 6px 20px 20px; }
+  .balance-hero { background: var(--ink); color: var(--paper); padding: 6px 20px 16px; }
   .label { font-size: 13px; color: #9BA3BC; font-weight: 500; }
   .amount {
-    font-family: var(--font-display); font-weight: 600; font-size: 40px;
+    font-family: var(--font-display); font-weight: 600; font-size: 16px;
     font-variant-numeric: tabular-nums; margin-top: 2px; color: #E39A8A;
   }
-  .callout-banner {
-    display: flex; align-items: center; gap: 7px; margin-top: 10px; padding: 8px 12px;
-    background: rgba(255,255,255,.06); border-radius: var(--radius);
-    font-family: var(--font-body); font-size: 12.5px; font-weight: 600; color: #7BC49A;
-  }
-  .callout-banner.warn { color: #E39A8A; }
-  .callout-banner .dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
 
   .details-toggle {
     display: inline-flex; align-items: center; gap: 4px; margin-top: 8px; padding: 0;
