@@ -113,7 +113,7 @@
   }
   .spacer { width: 40px; }
 
-  .content { background: var(--paper); min-height: 100vh; padding: 16px 20px calc(66px + env(safe-area-inset-bottom) + 24px); }
+  .content { background: var(--paper); min-height: 100vh; min-height: 100dvh; padding: 16px 20px calc(var(--tabbar-height) + 24px); }
 
   .action-row {
     position: relative; display: block; width: 100%; text-align: left; cursor: pointer;

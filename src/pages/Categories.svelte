@@ -232,7 +232,7 @@
   }
   .io-btn { font-size: 18px; }
 
-  .content { background: var(--paper); min-height: 100vh; padding: 4px 20px calc(66px + env(safe-area-inset-bottom) + 90px); }
+  .content { background: var(--paper); min-height: 100vh; min-height: 100dvh; padding: 4px 20px calc(var(--tabbar-height) + 90px); }
 
   .section-label { padding: 16px 0 8px; font-size: 13px; font-weight: 700; color: var(--ink); opacity: .6; }
   .cat-list { display: flex; flex-direction: column; gap: 8px; }
@@ -268,7 +268,7 @@
   .subcat-empty { font-family: var(--font-body); font-size: 12px; color: var(--ink); opacity: .4; }
 
   .fab-wrap {
-    position: fixed; left: 0; right: 0; bottom: calc(66px + env(safe-area-inset-bottom) + 16px);
+    position: fixed; left: 0; right: 0; bottom: calc(var(--tabbar-height) + 16px);
     max-width: 480px; margin: 0 auto; pointer-events: none;
   }
   .fab {

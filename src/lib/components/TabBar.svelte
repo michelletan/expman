@@ -26,8 +26,8 @@
   .tabbar {
     position: fixed; left: 0; right: 0; bottom: 0;
     max-width: 480px; margin: 0 auto;
-    height: calc(66px + env(safe-area-inset-bottom));
-    padding-bottom: env(safe-area-inset-bottom);
+    height: var(--tabbar-height);
+    padding-bottom: min(env(safe-area-inset-bottom), 34px);
     background: rgba(255, 255, 255, 0.85); backdrop-filter: blur(12px);
     border-top: 1px solid var(--paper-line);
     display: flex; align-items: flex-start; padding-top: 10px;

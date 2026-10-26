@@ -187,7 +187,7 @@
     background: rgba(255,255,255,.08); color: #C7CCDC; border: none; font-family: var(--font-body);
   }
 
-  .content { background: var(--paper); min-height: 100vh; padding-bottom: calc(66px + env(safe-area-inset-bottom) + 24px); }
+  .content { background: var(--paper); min-height: 100vh; min-height: 100dvh; padding-bottom: calc(var(--tabbar-height) + 24px); }
 
   .balance-hero { background: var(--ink); color: var(--paper); padding: 6px 20px 16px; }
   .label { font-size: 13px; color: #9BA3BC; font-weight: 500; }
@@ -235,7 +235,7 @@
   .empty-state { padding: 40px 24px; text-align: center; color: var(--ink); opacity: .5; font-size: 14px; }
 
   .fab-wrap {
-    position: fixed; left: 0; right: 0; bottom: calc(66px + env(safe-area-inset-bottom) + 16px);
+    position: fixed; left: 0; right: 0; bottom: calc(var(--tabbar-height) + 16px);
     max-width: 480px; margin: 0 auto; pointer-events: none;
   }
   .fab {

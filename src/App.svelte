@@ -309,11 +309,11 @@
   #app-shell {
     max-width: 480px;
     margin: 0 auto;
-    min-height: 100vh;
+    min-height: 100vh; min-height: 100dvh;
     background: var(--paper);
   }
   .boot-loading {
-    min-height: 100vh; display: flex; align-items: center; justify-content: center;
+    min-height: 100vh; min-height: 100dvh; display: flex; align-items: center; justify-content: center;
     color: var(--ink); opacity: .5; font-family: var(--font-body); font-size: 14px;
   }
 </style>

@@ -94,7 +94,7 @@
   }
   .spacer { width: 40px; }
 
-  .content { background: var(--paper); min-height: 100vh; padding: 16px 20px calc(66px + env(safe-area-inset-bottom) + 24px); }
+  .content { background: var(--paper); min-height: 100vh; min-height: 100dvh; padding: 16px 20px calc(var(--tabbar-height) + 24px); }
   .period { font-family: var(--font-body); font-size: 13px; color: var(--ink); opacity: .6; margin-bottom: 4px; }
   .total-spend { font-family: var(--font-display); font-size: 20px; font-weight: 600; color: var(--ink); margin-bottom: 20px; }
 
