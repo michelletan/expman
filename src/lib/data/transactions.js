@@ -14,7 +14,7 @@ export async function getRecentTransactions(limit = 6, accountId) {
   const recent = all
     .filter(t => !accountId || t.accountId === accountId)
     .slice()
-    .sort((a, b) => (b.date || '').localeCompare(a.date || '') || (a.createdAt || '').localeCompare(b.createdAt || ''))
+    .sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''))
     .slice(0, limit);
   return resolveTransactionLabels(recent);
 }

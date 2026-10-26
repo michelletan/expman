@@ -20,6 +20,16 @@
   /* Semantic — fixed across all themes (specs/themes.md requirement 9) */
   --green: #3F7D58;
   --rust: #B54B3B;
+  --amber: #C9822E;
+
+  /* TabBar.svelte's own height (66px) plus the bottom safe area, capped
+     at 34px (the standard iOS home-indicator inset on every Face ID
+     iPhone to date) so a device reporting an inflated
+     safe-area-inset-bottom can't balloon the bar and waste screen
+     space — same reasoning as the header's safe-area fallback. Every
+     page's bottom content padding reuses this so it never drifts out
+     of sync with the bar's real height. */
+  --tabbar-height: calc(66px + min(env(safe-area-inset-bottom), 34px));
 
   /* Typography */
   --font-display: 'Space Grotesk', system-ui, sans-serif;

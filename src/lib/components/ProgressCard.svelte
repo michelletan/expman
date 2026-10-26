@@ -18,7 +18,7 @@
   const barColor = $derived(
     variant === 'goal'
       ? (pct >= 100 ? 'var(--green)' : 'var(--accent)')
-      : (pct >= 90 ? 'var(--rust)' : 'var(--accent)')
+      : (pct >= 100 ? 'var(--rust)' : pct >= 90 ? 'var(--amber)' : 'var(--accent)')
   );
 </script>
 

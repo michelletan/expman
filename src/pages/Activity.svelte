@@ -508,7 +508,7 @@
     font-family: var(--font-body); font-size: 14px; font-weight: 600;
   }
   .month-nav button { background: none; border: none; color: var(--paper); font-size: 16px; padding: 2px 6px; }
-  .month-label { font-family: var(--font-body); font-size: 14px; font-weight: 600; min-width: 120px; text-align: center; }
+  .month-nav button.month-label { font-family: var(--font-body); font-size: 14px; font-weight: 600; padding: 0; min-width: 120px; text-align: center; }
 
   .period-total { display: flex; align-items: baseline; justify-content: center; gap: 6px; margin-top: 6px; }
   .total-label { font-size: 12.5px; color: #9BA3BC; font-weight: 500; }
@@ -516,7 +516,7 @@
   .total-amount.pos { color: #7BC49A; }
   .total-amount.neg { color: #E39A8A; }
 
-  .content { background: var(--paper); min-height: 100vh; padding: 16px 20px calc(66px + env(safe-area-inset-bottom) + 16px); }
+  .content { background: var(--paper); min-height: 100vh; min-height: 100dvh; padding: 16px 20px calc(var(--tabbar-height) + 16px); }
 
   .search-row { display: flex; gap: 8px; margin-bottom: 12px; }
   .search {
