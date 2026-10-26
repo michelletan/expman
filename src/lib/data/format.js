@@ -68,6 +68,49 @@ export function lastDayOfMonth(year, month1Indexed) {
   return new Date(year, month1Indexed, 0).getDate();
 }
 
+// specs/activity-period-summary.md — plain day arithmetic + Monday-start
+// week powering Activity's Daily/Weekly granularity.
+export function shiftDate(dateISO, deltaDays) {
+  const [y, m, d] = dateISO.split('-').map(Number);
+  const date = new Date(y, m - 1, d + deltaDays);
+  return date.getFullYear() + '-' + String(date.getMonth() + 1).padStart(2, '0') + '-' + String(date.getDate()).padStart(2, '0');
+}
+
+// Monday–Sunday (ISO-style) — a concrete proposal per the spec's Notes,
+// flagged there for adjustment if the original app used Sunday-start.
+export function weekStartISO(dateISO) {
+  const [y, m, d] = dateISO.split('-').map(Number);
+  const day = new Date(y, m - 1, d).getDay(); // 0 = Sun .. 6 = Sat
+  return shiftDate(dateISO, day === 0 ? -6 : 1 - day);
+}
+
+// "2026-01-31" + 1 month -> "2026-02-28", clamped to the new month's last
+// real day so Activity's Monthly nav keeps the same day-of-month in view
+// instead of overflowing into the month after.
+export function shiftAnchorByMonth(dateISO, delta) {
+  const [y, m, d] = dateISO.split('-').map(Number);
+  const [ny, nm] = shiftYearMonth(`${y}-${String(m).padStart(2, '0')}`, delta).split('-').map(Number);
+  return `${ny}-${String(nm).padStart(2, '0')}-${String(Math.min(d, lastDayOfMonth(ny, nm))).padStart(2, '0')}`;
+}
+
+export function shiftAnchorByYear(dateISO, delta) {
+  const [y, m, d] = dateISO.split('-').map(Number);
+  const ny = y + delta;
+  return `${ny}-${String(m).padStart(2, '0')}-${String(Math.min(d, lastDayOfMonth(ny, m))).padStart(2, '0')}`;
+}
+
+const WEEKDAY_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+export function fmtDayLabel(dateISO) {
+  if (!dateISO) return '';
+  const [y, m, d] = dateISO.split('-').map(Number);
+  return `${WEEKDAY_SHORT[new Date(y, m - 1, d).getDay()]}, ${MONTH_SHORT[m - 1]} ${d}`;
+}
+
+export function fmtWeekLabel(weekStart) {
+  return `${fmtDateShort(weekStart)} – ${fmtDateShort(shiftDate(weekStart, 6))}`;
+}
+
 // A card's current spending cycle from its resetDate (a day-of-month,
 // 1-31): if today is on/after resetDate, the cycle runs from this
 // month's resetDate to the day before next month's; otherwise from last

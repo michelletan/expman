@@ -1,8 +1,18 @@
 <script>
   import { untrack } from 'svelte';
-  import { getTransactionsForMonth, getAll, groupTransactionsByCategory } from '../lib/data/db.js';
+  import {
+    getAll, groupTransactionsByCategory,
+    getTransactionsForMonth, getMonthSummary, getDayTotalsForMonth,
+    getTransactionsForDay, getDaySummary,
+    getTransactionsForWeek, getWeekSummary, getDayTotalsForWeek,
+    getTransactionsForYear, getYearToDate, getYearlyTrend
+  } from '../lib/data/db.js';
   import { resolveTransactionLabels, searchTransactions } from '../lib/data/transactions.js';
-  import { fmtMoney, fmtMonthLabel, shiftYearMonth, currentYearMonth, MONTH_SHORT } from '../lib/data/format.js';
+  import {
+    fmtMoney, fmtMoneySigned, fmtMonthLabel, fmtDayLabel, fmtWeekLabel,
+    shiftDate, shiftAnchorByMonth, shiftAnchorByYear, weekStartISO,
+    todayISO, MONTH_SHORT
+  } from '../lib/data/format.js';
   import TransactionRow from '../lib/components/TransactionRow.svelte';
   import CategoryPicker from '../lib/components/CategoryPicker.svelte';
 
@@ -14,40 +24,89 @@
   // untrack, same one-shot-prop pattern as AddTransaction's initialType.
   let { accountId, onOpenTransaction, initialCategoryFilter = null, initialSubcategoryFilter = null } = $props();
 
-  let yearMonth = $state(currentYearMonth());
+  // specs/activity-period-summary.md — a single reference date drives
+  // every granularity's current period: yearMonth/year/weekStart below
+  // are all derived from it, so switching granularity never loses "where
+  // you were", and month/year nav (shiftAnchorByMonth/Year) clamps the
+  // day-of-month instead of overflowing into the next period.
+  let granularity = $state('month'); // 'day' | 'week' | 'month' | 'year'
+  let anchorDate = $state(todayISO());
+
+  const yearMonth = $derived(anchorDate.slice(0, 7));
+  const year = $derived(Number(anchorDate.slice(0, 4)));
+  const weekStart = $derived(weekStartISO(anchorDate));
+  const weekEnd = $derived(shiftDate(weekStart, 6));
+  const periodLabel = $derived(
+    granularity === 'day' ? fmtDayLabel(anchorDate)
+    : granularity === 'week' ? fmtWeekLabel(weekStart)
+    : granularity === 'year' ? String(year)
+    : fmtMonthLabel(yearMonth)
+  );
+  const periodNoun = $derived({ day: 'day', week: 'week', month: 'month', year: 'year' }[granularity]);
+
   let view = $state('date'); // 'date' | 'category'
   let search = $state('');
 
-  // Defaults to oldest-first, matching the user's own habit — applies
-  // to both the month view's Date list and resultsMode's flat list
-  // (Category view isn't date-ordered, so this doesn't apply there).
-  // Both lists are fetched/kept newest-first internally; this only
-  // flips display order, so it never changes which rows are included
-  // (matters for resultsMode's 200-row cap — see searchTransactions).
+  // Defaults to oldest-first, matching the user's own habit — applies to
+  // both the flat transaction list (Daily granularity, or the month
+  // category-filter chip below) and resultsMode's flat list. The bucketed
+  // Date views (Weekly/Monthly/Yearly) are always chronological ascending
+  // instead, same as the original app's screenshots — no toggle for them.
   let sortDir = $state('asc'); // 'asc' = oldest first, 'desc' = newest first
   function toggleSort() {
     sortDir = sortDir === 'asc' ? 'desc' : 'asc';
   }
 
-  // Tapping the month label opens a jump-to-month/year picker
-  // (specs/transactions.md requirement 24) — separate from the ‹ › step
-  // buttons either side of it.
-  let monthPickerOpen = $state(false);
-  let pickerYear = $state(0);
-
-  function openMonthPicker() {
-    pickerYear = Number(yearMonth.slice(0, 4));
-    monthPickerOpen = true;
+  function setGranularity(next) {
+    if (next === granularity) return;
+    granularity = next;
+    // The category drill-in chip is a month-only mechanism (unchanged —
+    // specs/activity-search-filter.md requirement 9), so leaving Monthly
+    // always clears it rather than carrying it into a period it can't
+    // apply to.
+    categoryFilterActive = false;
+    categoryFilter = null;
   }
 
+  function stepAnchor(delta) {
+    if (granularity === 'day') return shiftDate(anchorDate, delta);
+    if (granularity === 'week') return shiftDate(anchorDate, delta * 7);
+    if (granularity === 'year') return shiftAnchorByYear(anchorDate, delta);
+    return shiftAnchorByMonth(anchorDate, delta);
+  }
+  function prevPeriod() { anchorDate = stepAnchor(-1); }
+  function nextPeriod() { anchorDate = stepAnchor(1); }
+
+  // Tapping the period label opens a jump picker shaped for whatever
+  // granularity is active (requirement 6): a month/year grid for Monthly
+  // (unchanged from before), a plain year stepper for Yearly, and a
+  // native date input for Daily/Weekly (not worth a custom calendar).
+  let periodPickerOpen = $state(false);
+  let pickerYear = $state(0);
+  let pickerDate = $state('');
+
+  function openPeriodPicker() {
+    if (granularity === 'day' || granularity === 'week') pickerDate = anchorDate;
+    else pickerYear = year;
+    periodPickerOpen = true;
+  }
   function pickMonth(monthIndex1) {
-    yearMonth = `${pickerYear}-${String(monthIndex1).padStart(2, '0')}`;
-    monthPickerOpen = false;
+    anchorDate = `${pickerYear}-${String(monthIndex1).padStart(2, '0')}-01`;
+    periodPickerOpen = false;
+  }
+  function pickYear() {
+    anchorDate = `${pickerYear}-01-01`;
+    periodPickerOpen = false;
+  }
+  function pickDate() {
+    if (pickerDate) anchorDate = pickerDate;
+    periodPickerOpen = false;
   }
 
   // Set either by drilling in from a Category view row (requirement 29)
   // or by an initial prop from a budget tap (requirement 19 above) —
-  // switching the view toggle directly always clears this.
+  // switching the view toggle directly, or leaving Monthly granularity,
+  // always clears this.
   let categoryFilterActive = $state(untrack(() => initialCategoryFilter != null));
   /** @type {string|null} */
   let categoryFilter = $state(untrack(() => initialCategoryFilter));
@@ -55,15 +114,37 @@
   let subcategoryFilter = $state(untrack(() => initialSubcategoryFilter));
   let categoryFilterLabel = $state('');
 
+  // periodSummary/categoryTotals apply at every granularity; transactions
+  // (flat list) only for Daily, or Monthly with the category chip active;
+  // bucketRows (one row per sub-period, each carrying its own total) only
+  // for Weekly/Monthly/Yearly otherwise — see loadPeriod below.
+  let periodSummary = $state({ expense: 0, income: 0 });
   let transactions = $state([]);
+  let bucketRows = $state([]);
   let categoryTotals = $state([]);
+
+  const periodNet = $derived(periodSummary.income - periodSummary.expense);
+  const periodNetText = $derived(fmtMoneySigned(Math.abs(periodNet), periodNet >= 0 ? 'income' : 'expense'));
+
+  function netText(income, expense) {
+    const net = income - expense;
+    return { net, text: fmtMoneySigned(Math.abs(net), net >= 0 ? 'income' : 'expense') };
+  }
+
+  function openDayBucket(dateISO) {
+    anchorDate = dateISO;
+    granularity = 'day';
+  }
+  function openMonthBucket(ym) {
+    anchorDate = `${ym}-01`;
+    granularity = 'month';
+  }
 
   // specs/activity-search-filter.md — a *separate* all-time filter set
   // from categoryFilterActive/categoryFilter above (requirement 9): that
   // one stays a month-scoped drill-in (Category view, budget taps); this
-  // one is the new Filters sheet, combined with search text to decide
-  // whether Activity is in resultsMode (all-time, flat) or the normal
-  // month view.
+  // one is the Filters sheet, combined with search text to decide whether
+  // Activity is in resultsMode (all-time, flat) or the normal period view.
   let filtersOpen = $state(false);
   // Separate active flag (not just checking filterCategoryId != null) —
   // the picker's "Uncategorised" option is itself a real, filterable
@@ -119,9 +200,9 @@
   // *before* the first await below, inside the effect body — reading
   // them after an await wouldn't be tracked as a dependency. The guard
   // object lets a newer run cancel an older, still-in-flight one — two
-  // quick changes (e.g. clearing search right before paging the month)
-  // could otherwise let the slower load() finish last and overwrite
-  // fresher results with stale ones.
+  // quick changes (e.g. paging the period right before switching
+  // granularity) could otherwise let the slower load() finish last and
+  // overwrite fresher results with stale ones.
   $effect(() => {
     const guard = { cancelled: false };
     if (resultsMode) {
@@ -130,7 +211,10 @@
         filterType, filterDateFrom, filterDateTo, guard
       );
     } else {
-      load(yearMonth, accountId, search, categoryFilterActive, categoryFilter, subcategoryFilter, guard);
+      loadPeriod(
+        granularity, yearMonth, year, weekStart, weekEnd, anchorDate, accountId,
+        categoryFilterActive, categoryFilter, subcategoryFilter, guard
+      );
     }
     return () => { guard.cancelled = true; };
   });
@@ -145,36 +229,76 @@
     searchTotal = result.total;
   }
 
-  async function load(month, accountId, search, chipActive, chipCategoryId, chipSubcategoryId, guard) {
-    const [monthTxns, categories] = await Promise.all([
-      getTransactionsForMonth(month, accountId),
-      getAll('categories')
-    ]);
+  async function loadPeriod(gran, ym, yr, wkStart, wkEnd, dateISO, accId, catActive, catId, subId, guard) {
+    const categories = await getAll('categories');
     if (guard.cancelled) return;
 
-    // Resolve the filter chip's label lazily here rather than requiring
-    // every caller to pass one — drillIntoCategory below already sets it
-    // directly (cheaper, it already has the row's label to hand), so this
-    // only runs for a prop-driven filter (requirement 19) that arrived
-    // without one.
-    if (chipActive && !categoryFilterLabel) {
-      const cat = categories.find(c => c.id === chipCategoryId);
-      const sub = chipSubcategoryId ? cat?.subcategories.find(s => s.id === chipSubcategoryId) : null;
-      categoryFilterLabel = cat ? (sub ? `${cat.name} / ${sub.name}` : cat.name) : '';
+    // Month-only category-filtered flat list — unchanged mechanism
+    // (specs/activity-search-filter.md requirement 9), regardless of
+    // which granularity tab is selected elsewhere (setGranularity always
+    // clears this, so gran is always 'month' whenever catActive is true).
+    if (catActive) {
+      if (!categoryFilterLabel) {
+        const cat = categories.find(c => c.id === catId);
+        const sub = subId ? cat?.subcategories.find(s => s.id === subId) : null;
+        categoryFilterLabel = cat ? (sub ? `${cat.name} / ${sub.name}` : cat.name) : '';
+      }
+      const monthTxns = await getTransactionsForMonth(ym, accId);
+      if (guard.cancelled) return;
+      const filtered = monthTxns.filter(t => (t.categoryId ?? null) === catId && (!subId || t.subcategoryId === subId));
+      const sorted = filtered.slice().sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+      const resolved = await resolveTransactionLabels(sorted);
+      if (guard.cancelled) return;
+      let expense = 0, income = 0;
+      for (const t of filtered) { if (t.type === 'income') income += t.amount; else expense += t.amount; }
+      periodSummary = { expense, income };
+      transactions = resolved;
+      bucketRows = [];
+      categoryTotals = [];
+      return;
     }
 
-    const q = search.trim().toLowerCase();
-    const searched = q ? monthTxns.filter(t => (t.description || '').toLowerCase().includes(q)) : monthTxns;
-
-    const dateList = chipActive
-      ? searched.filter(t => (t.categoryId ?? null) === chipCategoryId && (!chipSubcategoryId || t.subcategoryId === chipSubcategoryId))
-      : searched;
-    const sorted = dateList.slice().sort((a, b) => (b.date || '').localeCompare(a.date || '')); // newest first
-    const resolved = await resolveTransactionLabels(sorted);
-    if (guard.cancelled) return;
-
-    transactions = resolved;
-    categoryTotals = groupTransactionsByCategory(searched, categories);
+    if (gran === 'day') {
+      const [summary, dayTxns] = await Promise.all([getDaySummary(dateISO, accId), getTransactionsForDay(dateISO, accId)]);
+      if (guard.cancelled) return;
+      const sorted = dayTxns.slice().sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+      const resolved = await resolveTransactionLabels(sorted);
+      if (guard.cancelled) return;
+      periodSummary = { expense: summary.expense, income: summary.income };
+      transactions = resolved;
+      bucketRows = [];
+      categoryTotals = groupTransactionsByCategory(dayTxns, categories);
+    } else if (gran === 'week') {
+      const [summary, rows, weekTxns] = await Promise.all([
+        getWeekSummary(wkStart, wkEnd, accId), getDayTotalsForWeek(wkStart, wkEnd, accId), getTransactionsForWeek(wkStart, wkEnd, accId)
+      ]);
+      if (guard.cancelled) return;
+      periodSummary = { expense: summary.expense, income: summary.income };
+      bucketRows = rows.map(row => ({ key: row.date, date: row.date, expense: row.expense, income: row.income }));
+      transactions = [];
+      categoryTotals = groupTransactionsByCategory(weekTxns, categories);
+    } else if (gran === 'year') {
+      const [summary, trend, yearTxns] = await Promise.all([
+        getYearToDate(yr, accId), getYearlyTrend(yr, accId), getTransactionsForYear(yr, accId)
+      ]);
+      if (guard.cancelled) return;
+      periodSummary = summary;
+      bucketRows = MONTH_SHORT.map((label, i) => ({
+        key: `${yr}-${String(i + 1).padStart(2, '0')}`, yearMonth: `${yr}-${String(i + 1).padStart(2, '0')}`,
+        label, expense: trend.expense[i], income: trend.income[i]
+      }));
+      transactions = [];
+      categoryTotals = groupTransactionsByCategory(yearTxns, categories);
+    } else { // month, no category filter
+      const [summary, rows, monthTxns] = await Promise.all([
+        getMonthSummary(ym, accId), getDayTotalsForMonth(ym, accId), getTransactionsForMonth(ym, accId)
+      ]);
+      if (guard.cancelled) return;
+      periodSummary = { expense: summary.expense, income: summary.income };
+      bucketRows = rows.map(row => ({ key: row.date, date: row.date, expense: row.expense, income: row.income }));
+      transactions = [];
+      categoryTotals = groupTransactionsByCategory(monthTxns, categories);
+    }
   }
 
   function setView(next) {
@@ -184,6 +308,7 @@
   }
 
   function drillIntoCategory(row) {
+    granularity = 'month';
     categoryFilterActive = true;
     categoryFilter = row.categoryId;
     subcategoryFilter = null; // Category view only ever groups by category, never subcategory
@@ -202,10 +327,20 @@
   <div class="topbar">
     <div class="title">Activity</div>
     {#if !resultsMode}
+      <div class="granularity-tabs">
+        <button class:active={granularity === 'day'} onclick={() => setGranularity('day')}>Daily</button>
+        <button class:active={granularity === 'week'} onclick={() => setGranularity('week')}>Weekly</button>
+        <button class:active={granularity === 'month'} onclick={() => setGranularity('month')}>Monthly</button>
+        <button class:active={granularity === 'year'} onclick={() => setGranularity('year')}>Yearly</button>
+      </div>
       <div class="month-nav">
-        <button onclick={() => yearMonth = shiftYearMonth(yearMonth, -1)} aria-label="Previous month">‹</button>
-        <button class="month-label" onclick={openMonthPicker}>{fmtMonthLabel(yearMonth)}</button>
-        <button onclick={() => yearMonth = shiftYearMonth(yearMonth, 1)} aria-label="Next month">›</button>
+        <button onclick={prevPeriod} aria-label="Previous period">‹</button>
+        <button class="month-label" onclick={openPeriodPicker}>{periodLabel}</button>
+        <button onclick={nextPeriod} aria-label="Next period">›</button>
+      </div>
+      <div class="period-total">
+        <span class="total-label">Balance</span>
+        <span class="total-amount" class:pos={periodNet >= 0} class:neg={periodNet < 0}>{periodNetText}</span>
       </div>
     {/if}
   </div>
@@ -241,14 +376,31 @@
       {/if}
 
       {#if view === 'date'}
-        <button class="sort-toggle" onclick={toggleSort}>{sortDir === 'asc' ? '↑ Oldest first' : '↓ Newest first'}</button>
-        <div class="tx-list">
-          {#each orderedTransactions as transaction (transaction.id)}
-            <TransactionRow {transaction} onOpen={onOpenTransaction} />
-          {:else}
-            <div class="empty-state">No transactions this month.</div>
-          {/each}
-        </div>
+        {#if granularity === 'day' || categoryFilterActive}
+          <button class="sort-toggle" onclick={toggleSort}>{sortDir === 'asc' ? '↑ Oldest first' : '↓ Newest first'}</button>
+          <div class="tx-list">
+            {#each orderedTransactions as transaction (transaction.id)}
+              <TransactionRow {transaction} onOpen={onOpenTransaction} />
+            {:else}
+              <div class="empty-state">No transactions this {periodNoun}.</div>
+            {/each}
+          </div>
+        {:else}
+          <div class="cat-totals">
+            {#each bucketRows as row (row.key)}
+              {@const n = netText(row.income, row.expense)}
+              <button
+                class="cat-total-row"
+                onclick={() => granularity === 'year' ? openMonthBucket(row.yearMonth) : openDayBucket(row.date)}
+              >
+                <span class="cat-name">{granularity === 'year' ? row.label : fmtDayLabel(row.date)}</span>
+                <span class="cat-amount" class:pos={n.net >= 0} class:neg={n.net < 0}>{n.text}</span>
+              </button>
+            {:else}
+              <div class="empty-state">No transactions this {periodNoun}.</div>
+            {/each}
+          </div>
+        {/if}
       {:else}
         <div class="cat-totals">
           {#each categoryTotals as row (row.categoryId ?? 'uncategorised')}
@@ -257,7 +409,7 @@
               <span class="cat-amount">{fmtMoney(row.total)}</span>
             </button>
           {:else}
-            <div class="empty-state">No transactions this month.</div>
+            <div class="empty-state">No transactions this {periodNoun}.</div>
           {/each}
         </div>
       {/if}
@@ -265,23 +417,36 @@
   </div>
 </div>
 
-{#if monthPickerOpen}
-  <div class="backdrop" role="button" tabindex="0" onclick={() => monthPickerOpen = false} onkeydown={(e) => e.key === 'Escape' && (monthPickerOpen = false)}>
+{#if periodPickerOpen}
+  <div class="backdrop" role="button" tabindex="0" onclick={() => periodPickerOpen = false} onkeydown={(e) => e.key === 'Escape' && (periodPickerOpen = false)}>
     <div class="picker-sheet" role="presentation" onclick={(e) => e.stopPropagation()}>
-      <div class="picker-year-nav">
-        <button onclick={() => pickerYear -= 1} aria-label="Previous year">‹</button>
-        <span>{pickerYear}</span>
-        <button onclick={() => pickerYear += 1} aria-label="Next year">›</button>
-      </div>
-      <div class="picker-month-grid">
-        {#each MONTH_SHORT as label, i (label)}
-          <button
-            class="picker-month-btn"
-            class:selected={yearMonth === `${pickerYear}-${String(i + 1).padStart(2, '0')}`}
-            onclick={() => pickMonth(i + 1)}
-          >{label}</button>
-        {/each}
-      </div>
+      {#if granularity === 'month'}
+        <div class="picker-year-nav">
+          <button onclick={() => pickerYear -= 1} aria-label="Previous year">‹</button>
+          <span>{pickerYear}</span>
+          <button onclick={() => pickerYear += 1} aria-label="Next year">›</button>
+        </div>
+        <div class="picker-month-grid">
+          {#each MONTH_SHORT as label, i (label)}
+            <button
+              class="picker-month-btn"
+              class:selected={yearMonth === `${pickerYear}-${String(i + 1).padStart(2, '0')}`}
+              onclick={() => pickMonth(i + 1)}
+            >{label}</button>
+          {/each}
+        </div>
+      {:else if granularity === 'year'}
+        <div class="picker-year-nav">
+          <button onclick={() => pickerYear -= 1} aria-label="Previous year">‹</button>
+          <span>{pickerYear}</span>
+          <button onclick={() => pickerYear += 1} aria-label="Next year">›</button>
+        </div>
+        <button class="done-btn" onclick={pickYear}>Go to {pickerYear}</button>
+      {:else}
+        <span class="field-label">Jump to date</span>
+        <input class="picker-date-input" type="date" bind:value={pickerDate} />
+        <button class="done-btn" onclick={pickDate}>Go</button>
+      {/if}
     </div>
   </div>
 {/if}
@@ -327,15 +492,29 @@
 <style>
   .topbar {
     background: var(--ink); color: var(--paper);
-    padding: max(env(safe-area-inset-top), 16px) 20px 16px;
+    padding: max(env(safe-area-inset-top), 59px) 20px 16px;
   }
   .title { font-size: 18px; font-weight: 700; font-family: var(--font-display); }
+
+  .granularity-tabs { display: flex; gap: 6px; margin-top: 12px; }
+  .granularity-tabs button {
+    flex: 1; padding: 6px 4px; border-radius: 20px; border: 1.5px solid rgba(255,255,255,.2);
+    background: transparent; color: #C7CCDC; font-family: var(--font-body); font-size: 11.5px; font-weight: 700;
+  }
+  .granularity-tabs button.active { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+
   .month-nav {
-    display: flex; align-items: center; justify-content: center; gap: 12px; margin-top: 8px;
+    display: flex; align-items: center; justify-content: center; gap: 12px; margin-top: 10px;
     font-family: var(--font-body); font-size: 14px; font-weight: 600;
   }
   .month-nav button { background: none; border: none; color: var(--paper); font-size: 16px; padding: 2px 6px; }
   .month-label { font-family: var(--font-body); font-size: 14px; font-weight: 600; min-width: 120px; text-align: center; }
+
+  .period-total { display: flex; align-items: baseline; justify-content: center; gap: 6px; margin-top: 6px; }
+  .total-label { font-size: 12.5px; color: #9BA3BC; font-weight: 500; }
+  .total-amount { font-family: var(--font-display); font-size: 17px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .total-amount.pos { color: #7BC49A; }
+  .total-amount.neg { color: #E39A8A; }
 
   .content { background: var(--paper); min-height: 100vh; padding: 16px 20px calc(66px + env(safe-area-inset-bottom) + 16px); }
 
@@ -385,6 +564,8 @@
   }
   .cat-name { font-size: 14.5px; font-weight: 600; color: var(--ink); }
   .cat-amount { font-size: 14.5px; font-weight: 700; color: var(--ink); font-variant-numeric: tabular-nums; }
+  .cat-amount.pos { color: var(--green); }
+  .cat-amount.neg { color: var(--rust); }
 
   .backdrop {
     position: fixed; inset: 0; background: rgba(0,0,0,.4);
@@ -402,6 +583,11 @@
     font-family: var(--font-body); font-size: 13.5px; font-weight: 600; color: var(--ink);
   }
   .picker-month-btn.selected { background: var(--accent); color: var(--accent-ink); font-weight: 700; }
+  .picker-date-input {
+    display: block; width: 100%; min-width: 0; margin-bottom: 14px; padding: 10px 12px;
+    border-radius: var(--radius); border: 1.5px solid var(--paper-line); background: var(--paper-dim);
+    font-family: var(--font-body); font-size: 14px; color: var(--ink); box-sizing: border-box;
+  }
 
   .filters-sheet {
     width: 100%; max-width: 400px; max-height: 85vh; overflow-y: auto;
@@ -433,5 +619,5 @@
   }
   .clear-btn { background: var(--paper-dim); color: var(--ink); }
   .clear-btn:disabled { opacity: .4; }
-  .done-btn { background: var(--accent); color: var(--accent-ink); }
+  .done-btn { background: var(--accent); color: var(--accent-ink); width: 100%; }
 </style>

@@ -57,7 +57,7 @@
     meta          - plain key/value settings (theme, lastSyncedAt, ...)
 */
 
-import { genId, todayISO, CATEGORY_COLORS, UNCATEGORISED_COLOR, lastDayOfMonth } from './format.js';
+import { genId, todayISO, CATEGORY_COLORS, UNCATEGORISED_COLOR, lastDayOfMonth, shiftDate } from './format.js';
 
 const DB_NAME = 'expman-db';
 const DB_VERSION = 1;
@@ -357,6 +357,72 @@ export async function getYearToDate(year, accountId) {
     if (t.type === 'income') income += t.amount; else expense += t.amount;
   }
   return { expense, income };
+}
+
+// specs/activity-period-summary.md — Daily/Weekly/Yearly counterparts to
+// getTransactionsForMonth/getMonthSummary/getYearToDate above, same shape.
+export async function getTransactionsForDay(dateISO, accountId) {
+  const all = await getVisibleTransactions();
+  return all.filter(t => t.date === dateISO && (!accountId || t.accountId === accountId));
+}
+
+export async function getDaySummary(dateISO, accountId) {
+  const txns = await getTransactionsForDay(dateISO, accountId);
+  let expense = 0, income = 0;
+  for (const t of txns) {
+    if (t.type === 'income') income += t.amount; else expense += t.amount;
+  }
+  return { expense, income, count: txns.length };
+}
+
+export async function getTransactionsForWeek(weekStart, weekEnd, accountId) {
+  const all = await getVisibleTransactions();
+  return all.filter(t => t.date >= weekStart && t.date <= weekEnd && (!accountId || t.accountId === accountId));
+}
+
+export async function getWeekSummary(weekStart, weekEnd, accountId) {
+  const txns = await getTransactionsForWeek(weekStart, weekEnd, accountId);
+  let expense = 0, income = 0;
+  for (const t of txns) {
+    if (t.type === 'income') income += t.amount; else expense += t.amount;
+  }
+  return { expense, income, count: txns.length };
+}
+
+export async function getTransactionsForYear(year, accountId) {
+  const all = await getVisibleTransactions();
+  return all.filter(t => t.date && t.date.startsWith(String(year)) && (!accountId || t.accountId === accountId));
+}
+
+// One row per day in the week, in order, even with a 0.00 total — powers
+// Activity's Weekly Date view bucket list (requirement 4).
+export async function getDayTotalsForWeek(weekStart, weekEnd, accountId) {
+  const txns = await getTransactionsForWeek(weekStart, weekEnd, accountId);
+  const totals = Array.from({ length: 7 }, (_, i) => ({ date: shiftDate(weekStart, i), expense: 0, income: 0 }));
+  const byDate = new Map(totals.map(row => [row.date, row]));
+  for (const t of txns) {
+    const row = byDate.get(t.date);
+    if (!row) continue;
+    if (t.type === 'income') row.income += t.amount; else row.expense += t.amount;
+  }
+  return totals;
+}
+
+// One row per day in the month, in order, even with a 0.00 total — powers
+// Activity's Monthly Date view bucket list (requirement 4), matching the
+// original app's day-by-day breakdown.
+export async function getDayTotalsForMonth(yearMonth, accountId) {
+  const txns = await getTransactionsForMonth(yearMonth, accountId);
+  const [y, m] = yearMonth.split('-').map(Number);
+  const totals = Array.from({ length: lastDayOfMonth(y, m) }, (_, i) =>
+    ({ date: `${yearMonth}-${String(i + 1).padStart(2, '0')}`, expense: 0, income: 0 }));
+  const byDate = new Map(totals.map(row => [row.date, row]));
+  for (const t of txns) {
+    const row = byDate.get(t.date);
+    if (!row) continue;
+    if (t.type === 'income') row.income += t.amount; else row.expense += t.amount;
+  }
+  return totals;
 }
 
 // Most-used subcategories — powers the "top 3" quick-pick chips on the
