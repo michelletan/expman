@@ -201,7 +201,7 @@
     background: none; border: none; color: #9BA3BC; font-family: var(--font-body);
     font-size: 12.5px; font-weight: 600;
   }
-  .details-toggle .chev { display: inline-block; transition: transform .15s ease; }
+  .details-toggle .chev { display: inline-block; font-size: 25px; transition: transform .15s ease; }
   .details-toggle .chev.open { transform: rotate(90deg); }
 
   .details-panel {

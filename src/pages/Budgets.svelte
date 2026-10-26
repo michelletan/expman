@@ -104,7 +104,7 @@
   .row-wrap :global(.budget-card) { flex: 1; }
   .icon-btn {
     width: 40px; height: 40px; flex-shrink: 0; border-radius: var(--radius); background: var(--paper-dim); border: none;
-    color: var(--ink); opacity: .6; font-size: 14px;
+    color: var(--ink); opacity: .6; font-size: 28px;
   }
 
   .empty-state { padding: 40px 0; text-align: center; color: var(--ink); opacity: .5; font-size: 14px; }

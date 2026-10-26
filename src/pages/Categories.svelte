@@ -246,10 +246,10 @@
   }
   .cat-name { display: inline-flex; align-items: center; gap: 8px; }
   .color-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; box-shadow: 0 0 0 1px rgba(0,0,0,.08) inset; }
-  .chev { opacity: .4; }
+  .chev { opacity: .4; font-size: 29px; }
   .icon-btn {
     width: 40px; border-radius: var(--radius); background: var(--paper-dim); border: none;
-    color: var(--ink); opacity: .6; font-size: 14px;
+    color: var(--ink); opacity: .6; font-size: 28px;
   }
 
   .reorder-btns { display: flex; flex-direction: column; gap: 2px; }

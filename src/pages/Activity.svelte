@@ -525,8 +525,9 @@
     box-sizing: border-box;
   }
   .filters-btn {
-    position: relative; width: 42px; flex-shrink: 0; border-radius: var(--radius);
-    border: 1.5px solid var(--paper-line); background: var(--paper-dim); font-size: 16px; color: var(--ink);
+    position: relative; width: 48px; flex-shrink: 0; border-radius: var(--radius);
+    border: 1.5px solid var(--paper-line); background: var(--paper-dim); font-size: 32px; color: var(--ink);
+    display: flex; align-items: center; justify-content: center;
   }
   .filters-dot {
     position: absolute; top: 6px; right: 7px; width: 7px; height: 7px; border-radius: 50%; background: var(--accent);

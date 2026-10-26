@@ -60,5 +60,5 @@
   }
   .right { display: flex; align-items: center; gap: 8px; }
   .value { opacity: .6; font-size: 13.5px; font-weight: 500; }
-  .chev { opacity: .4; font-size: 18px; }
+  .chev { opacity: .4; font-size: 36px; }
 </style>
