@@ -176,7 +176,7 @@
      manually-wired event listeners. */
   .topbar {
     background: var(--ink); color: var(--paper);
-    padding: max(env(safe-area-inset-top), 59px) 20px 16px;
+    padding: max(env(safe-area-inset-top), 16px) 20px 16px;
   }
   .account-row { display: flex; align-items: center; gap: 10px; }
   .account-name {
@@ -201,7 +201,7 @@
     background: none; border: none; color: #9BA3BC; font-family: var(--font-body);
     font-size: 12.5px; font-weight: 600;
   }
-  .details-toggle .chev { display: inline-block; font-size: 25px; transition: transform .15s ease; }
+  .details-toggle .chev { display: inline-block; font-size: 17px; transition: transform .15s ease; }
   .details-toggle .chev.open { transform: rotate(90deg); }
 
   .details-panel {

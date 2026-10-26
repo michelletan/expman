@@ -48,7 +48,7 @@
 <style>
   .topbar {
     background: var(--ink); color: var(--paper);
-    padding: max(env(safe-area-inset-top), 59px) 20px 16px;
+    padding: max(env(safe-area-inset-top), 16px) 20px 16px;
   }
   .title { font-size: 18px; font-weight: 700; font-family: var(--font-display); }
   .content { background: var(--paper); min-height: 100vh; min-height: 100dvh; padding-bottom: calc(var(--tabbar-height) + 24px); }
@@ -60,5 +60,5 @@
   }
   .right { display: flex; align-items: center; gap: 8px; }
   .value { opacity: .6; font-size: 13.5px; font-weight: 500; }
-  .chev { opacity: .4; font-size: 36px; }
+  .chev { opacity: .4; font-size: 24px; }
 </style>

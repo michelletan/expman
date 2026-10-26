@@ -222,7 +222,7 @@
 <style>
   .topbar {
     background: var(--ink); color: var(--paper);
-    padding: max(env(safe-area-inset-top), 59px) 20px 16px;
+    padding: max(env(safe-area-inset-top), 16px) 20px 16px;
     display: flex; align-items: center; justify-content: space-between;
   }
   .title { font-size: 18px; font-weight: 700; font-family: var(--font-display); }
@@ -246,10 +246,10 @@
   }
   .cat-name { display: inline-flex; align-items: center; gap: 8px; }
   .color-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; box-shadow: 0 0 0 1px rgba(0,0,0,.08) inset; }
-  .chev { opacity: .4; font-size: 29px; }
+  .chev { opacity: .4; font-size: 20px; }
   .icon-btn {
     width: 40px; border-radius: var(--radius); background: var(--paper-dim); border: none;
-    color: var(--ink); opacity: .6; font-size: 28px;
+    color: var(--ink); opacity: .6; font-size: 20px;
   }
 
   .reorder-btns { display: flex; flex-direction: column; gap: 2px; }

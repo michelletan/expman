@@ -492,7 +492,7 @@
 <style>
   .topbar {
     background: var(--ink); color: var(--paper);
-    padding: max(env(safe-area-inset-top), 59px) 20px 16px;
+    padding: max(env(safe-area-inset-top), 16px) 20px 16px;
   }
   .title { font-size: 18px; font-weight: 700; font-family: var(--font-display); }
 
@@ -525,9 +525,8 @@
     box-sizing: border-box;
   }
   .filters-btn {
-    position: relative; width: 48px; flex-shrink: 0; border-radius: var(--radius);
-    border: 1.5px solid var(--paper-line); background: var(--paper-dim); font-size: 32px; color: var(--ink);
-    display: flex; align-items: center; justify-content: center;
+    position: relative; width: 42px; flex-shrink: 0; border-radius: var(--radius);
+    border: 1.5px solid var(--paper-line); background: var(--paper-dim); font-size: 20px; color: var(--ink);
   }
   .filters-dot {
     position: absolute; top: 6px; right: 7px; width: 7px; height: 7px; border-radius: 50%; background: var(--accent);
