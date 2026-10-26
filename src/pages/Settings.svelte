@@ -48,7 +48,7 @@
 <style>
   .topbar {
     background: var(--ink); color: var(--paper);
-    padding: max(env(safe-area-inset-top), 16px) 20px 16px;
+    padding: max(env(safe-area-inset-top), 59px) 20px 16px;
   }
   .title { font-size: 18px; font-weight: 700; font-family: var(--font-display); }
   .content { background: var(--paper); min-height: 100vh; padding-bottom: calc(66px + env(safe-area-inset-bottom) + 24px); }

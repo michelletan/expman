@@ -236,7 +236,7 @@
 <style>
   .topbar {
     background: var(--ink); color: var(--paper);
-    padding: max(env(safe-area-inset-top), 16px) 20px 16px;
+    padding: max(env(safe-area-inset-top), 59px) 20px 16px;
     display: flex; align-items: center; justify-content: space-between;
   }
   .title { font-size: 16px; font-weight: 700; font-family: var(--font-display); }
@@ -269,7 +269,7 @@
     color: var(--ink); opacity: .6; margin-bottom: 6px;
   }
   .field input, .field select {
-    width: 100%; padding: 12px 14px; border-radius: var(--radius); border: 1.5px solid var(--paper-line);
+    width: 100%; min-width: 0; padding: 12px 14px; border-radius: var(--radius); border: 1.5px solid var(--paper-line);
     background: var(--paper-dim); font-family: var(--font-body); font-size: 15px; color: var(--ink);
     box-sizing: border-box;
   }

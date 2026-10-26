@@ -176,7 +176,7 @@
      manually-wired event listeners. */
   .topbar {
     background: var(--ink); color: var(--paper);
-    padding: max(env(safe-area-inset-top), 16px) 20px 16px;
+    padding: max(env(safe-area-inset-top), 59px) 20px 16px;
   }
   .account-row { display: flex; align-items: center; gap: 10px; }
   .account-name {
